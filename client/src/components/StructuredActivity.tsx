@@ -42,9 +42,15 @@ function CircleLetterCard({
   const getPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement): Point => {
     const rect = canvas.getBoundingClientRect();
     if ('touches' in e) {
-      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+      return {
+        x: (e.touches[0].clientX - rect.left) * (canvas.width / rect.width),
+        y: (e.touches[0].clientY - rect.top) * (canvas.height / rect.height),
+      };
     }
-    return { x: (e as React.MouseEvent).clientX - rect.left, y: (e as React.MouseEvent).clientY - rect.top };
+    return {
+      x: ((e as React.MouseEvent).clientX - rect.left) * (canvas.width / rect.width),
+      y: ((e as React.MouseEvent).clientY - rect.top) * (canvas.height / rect.height),
+    };
   };
 
   const isClosedLoop = (pts: Point[]): boolean => {
@@ -139,9 +145,9 @@ function CircleLetterCard({
       style={{
         animationDelay: `${entryDelay}ms`,
         position: 'relative',
-        width: 170,
-        height: 170,
-        borderRadius: 28,
+        width: 'clamp(88px, 22vmin, 170px)',
+        height: 'clamp(88px, 22vmin, 170px)',
+        borderRadius: 'clamp(16px, 4vmin, 28px)',
         border: `4px solid ${borderColor}`,
         background: bgColor,
         display: 'flex',
@@ -155,7 +161,7 @@ function CircleLetterCard({
       }}
     >
       <span style={{
-        fontSize: 80,
+        fontSize: 'clamp(42px, 10vmin, 80px)',
         fontWeight: 'bold',
         color: '#1e293b',
         pointerEvents: 'none',
@@ -170,6 +176,8 @@ function CircleLetterCard({
           position: 'absolute',
           top: 0,
           left: 0,
+          width: '100%',
+          height: '100%',
           borderRadius: 28,
           touchAction: 'none',
           cursor: circled || disabled ? 'default' : 'crosshair',
@@ -205,7 +213,7 @@ function LetterSidebar({ uppercase, lowercase }: { uppercase: string; lowercase:
       className="letter-bounce"
       style={{
         position: 'fixed',
-        left: '10vw',
+        left: 'clamp(8px, 8vw, 10vw)',
         top: '43%',
         transform: 'translateY(-50%)',
         display: 'flex',
@@ -219,11 +227,11 @@ function LetterSidebar({ uppercase, lowercase }: { uppercase: string; lowercase:
       }}
     >
       <span style={{
-        fontSize: 'clamp(96px, 13vw, 160px)',
+        fontSize: 'clamp(54px, 13vmin, 160px)',
         fontWeight: 900,
         color: '#ffffff',
-        letterSpacing: '-4px',
-        WebkitTextStroke: '6px rgba(60,60,60,0.55)',
+        letterSpacing: 0,
+        WebkitTextStroke: 'clamp(3px, 0.8vmin, 6px) rgba(60,60,60,0.55)',
         textShadow: '0 4px 0 rgb(94, 94, 94)',
         paintOrder: 'stroke fill',
       }}>
@@ -592,18 +600,18 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
 
       {mode === 'independent' ? (
         // ── Look & Circle mode ─────────────────────────────────────────────────
-        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
           <div className="text-center flex-shrink-0" style={{ paddingTop: 8, paddingBottom: 8 }}>
-            <h2 className="text-3xl font-fredoka font-bold text-foreground">Panuto: Tingnan ang larawan at bilugan kung anong titik ang may unang tunog sa larawang ito.</h2>
+            <h2 className="font-fredoka font-bold text-foreground" style={{ fontSize: 'clamp(16px, 4vmin, 30px)', lineHeight: 1.15 }}>Panuto: Tingnan ang larawan at bilugan kung anong titik ang may unang tunog sa larawang ito.</h2>
           </div>
 
           <div style={{
             flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            paddingLeft: 48, paddingRight: 48, paddingBottom: 12,
+            paddingLeft: 'clamp(8px, 5vw, 48px)', paddingRight: 'clamp(8px, 5vw, 48px)', paddingBottom: 'clamp(6px, 2vh, 12px)',
           }}>
             {currentAsset && (
               <div style={{
-                width: '100%', maxWidth: 600, height: '100%', borderRadius: 28, overflow: 'hidden',
+                width: '100%', maxWidth: 600, height: '100%', maxHeight: '48dvh', borderRadius: 28, overflow: 'hidden',
                 background: 'rgba(255,255,255,0.85)', boxShadow: '0 8px 32px rgba(0,0,0,0.13)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
@@ -623,10 +631,10 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
               flexShrink: 0,
               display: 'flex',
               justifyContent: 'center',
-              gap: 16,
-              paddingBottom: 24,
-              paddingLeft: 24,
-              paddingRight: 24,
+              gap: 'clamp(8px, 3vw, 16px)',
+              paddingBottom: 'clamp(8px, 3vh, 24px)',
+              paddingLeft: 'clamp(8px, 3vw, 24px)',
+              paddingRight: 'clamp(8px, 3vw, 24px)',
             }}>
               {renderCard(slotToOption[0], 0)}
               {renderCard(slotToOption[1], 150)}
@@ -636,9 +644,9 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
         </div>
       ) : (
         // ── Guided mode: Listen & Repeat ──────────────────────────────────────
-        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
+        <div style={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(6px, 2vh, 12px)', overflow: 'auto' }}>
           <div className="text-center flex-shrink-0">
-            <h2 className="text-3xl font-fredoka font-bold text-foreground mb-2">Pakinggan nang mabuti ang tunog ng letra at bilugan kung anong letra ito. </h2>
+            <h2 className="font-fredoka font-bold text-foreground mb-2" style={{ fontSize: 'clamp(16px, 4vmin, 30px)', lineHeight: 1.15 }}>Pakinggan nang mabuti ang tunog ng letra at bilugan kung anong letra ito. </h2>
             {!choicesUnlocked && progressDots()}
           </div>
 
@@ -664,6 +672,7 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
               <div style={{
                 width: '100%',
                 maxWidth: 480,
+                maxHeight: '48dvh',
                 height: '100%',
                 borderRadius: 20,
                 overflow: 'hidden',
@@ -689,7 +698,8 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
               <Button
                 onClick={handlePlaySound}
                 disabled={isPanuto4Playing}
-                className={`h-16 px-8 text-xl font-fredoka font-bold bg-secondary hover:bg-secondary/90 text-white rounded-2xl shadow-lg ${isPressed ? 'btn-press' : ''} ${isPanuto4Playing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`px-8 font-fredoka font-bold bg-secondary hover:bg-secondary/90 text-white rounded-2xl shadow-lg ${isPressed ? 'btn-press' : ''} ${isPanuto4Playing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                style={{ height: 'clamp(44px, 9vmin, 64px)', fontSize: 'clamp(15px, 3.5vmin, 20px)' }}
               >
                 🔊 Pakinggan nag tunog
               </Button>
@@ -703,10 +713,10 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
-              gap: 16,
-              paddingBottom: 20,
-              paddingLeft: 24,
-              paddingRight: 24,
+              gap: 'clamp(8px, 3vw, 16px)',
+              paddingBottom: 'clamp(8px, 3vh, 20px)',
+              paddingLeft: 'clamp(8px, 3vw, 24px)',
+              paddingRight: 'clamp(8px, 3vw, 24px)',
             }}>
               {renderCard(slotToOption[0], 0)}
               {renderCard(slotToOption[1], 150)}

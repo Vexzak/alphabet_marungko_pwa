@@ -455,13 +455,13 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
   const handleTouchEnd   = (isu: boolean) => { (isu ? pressingRefUpper : pressingRefLower).current = false; };
 
   const canvasPanel = (isUppercase: boolean) => (
-    <div className="flex flex-col items-center flex-1 min-w-0">
-      <h3 className="text-2xl font-fredoka font-bold text-foreground mb-1">
+    <div className="flex flex-col items-center flex-1 min-w-0" style={{ maxWidth: 'min(42vw, 52dvh, 500px)' }}>
+      <h3 className="font-fredoka font-bold text-foreground mb-1" style={{ fontSize: 'clamp(14px, 3vmin, 24px)', lineHeight: 1.1 }}>
         {isUppercase ? 'Malaki na' : 'Maliit na'} {getLetter(isUppercase)}
       </h3>
       <div
         className="relative rounded-2xl overflow-hidden w-full"
-        style={{ aspectRatio: '1 / 1', maxWidth: 500, width: '100%' }}
+        style={{ aspectRatio: '1 / 1', width: '100%' }}
       >
         <canvas ref={isUppercase ? letterCanvasRefUpper : letterCanvasRefLower} className="absolute inset-0 w-full h-full" />
         <canvas ref={isUppercase ? fillCanvasRefUpper   : fillCanvasRefLower}   className="absolute inset-0 w-full h-full" />
@@ -603,7 +603,7 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
             {/* Image */}
             {tracingAsset && (
               <div style={{
-                width: 400, height: 400, borderRadius: 70,
+                width: 'clamp(180px, 58vmin, 400px)', height: 'clamp(180px, 58vmin, 400px)', borderRadius: 'clamp(28px, 10vmin, 70px)',
                 overflow: 'hidden', background: '#f1f5f9',
                 boxShadow: '0 6px 24px rgba(0,0,0,0.12)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -649,9 +649,9 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
         </div>
       )}
 
-<div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'visible', gap: 8 }}>
+<div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto', gap: 'clamp(4px, 1.5vh, 8px)' }}>
   <div className="text-center flex-shrink-0">
-    <h2 className="text-2xl font-fredoka font-bold text-foreground">
+    <h2 className="font-fredoka font-bold text-foreground" style={{ fontSize: 'clamp(16px, 3.8vmin, 24px)', lineHeight: 1.15 }}>
       Panuto: Bakatin ang malaki at maliit na titik {' '}
       <span style={{ color: 'white', WebkitTextStroke: '4px black', paintOrder: 'stroke fill' }}>{getLetter(true)}</span>{' '}
       <span style={{ color: 'white', WebkitTextStroke: '4px black', paintOrder: 'stroke fill' }}>{getLetter(false)}</span>
@@ -661,12 +661,12 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
     </p>
   </div>
 
-        <div style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'visible' }}>
+        <div style={{ position: 'relative', flex: 1, minHeight: '160px', overflow: 'visible' }}>
           {tracingAsset && (
             <img
               src={tracingAsset.image}
               alt={tracingAsset.word}
-              className={idleBounce ? 'img-idle-bounce' : ''}
+              className={`tracing-side-image ${idleBounce ? 'img-idle-bounce' : ''}`}
               style={{
                 position: 'absolute',
                 top: '50%',
@@ -689,7 +689,7 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
             flexDirection: 'row',
             alignItems: 'flex-start',
             justifyContent: 'center',
-            gap: 12,
+            gap: 'clamp(8px, 2vw, 12px)',
           }}>
             {canvasPanel(true)}
             {canvasPanel(false)}

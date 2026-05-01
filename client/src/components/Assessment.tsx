@@ -67,12 +67,12 @@ export default function Assessment({ onNext, learnerCompletedLetters }: Assessme
   };
 
   return (
-    <div className="space-y-8">
+    <div style={{ height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 'clamp(12px, 3vh, 32px)', padding: 'clamp(8px, 2vh, 16px) 0' }}>
       <div className="text-center">
-        <h2 className="text-4xl font-fredoka font-bold text-foreground mb-2">
+        <h2 className="font-fredoka font-bold text-foreground mb-2" style={{ fontSize: 'clamp(24px, 6vmin, 36px)', lineHeight: 1.1 }}>
           📝 Assessment
         </h2>
-        <p className="text-xl text-muted-foreground mb-4">
+        <p className="text-muted-foreground mb-4" style={{ fontSize: 'clamp(15px, 3.5vmin, 20px)' }}>
           Can you identify the letter{' '}
           <span className="font-fredoka font-bold text-primary">
             {currentLetter?.uppercase}{currentLetter?.lowercase}
@@ -92,19 +92,20 @@ export default function Assessment({ onNext, learnerCompletedLetters }: Assessme
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
+      <div className="grid grid-cols-3 max-w-md mx-auto" style={{ gap: 'clamp(8px, 2.5vw, 16px)', width: 'min(92vw, 448px)' }}>
         {options.map((option, idx) => (
           <Button
             key={idx}
             onClick={() => handleSelectAnswer(option)}
             disabled={showFeedback}
-            className={`h-24 text-4xl font-fredoka font-bold rounded-2xl transition-all ${
+            className={`font-fredoka font-bold rounded-2xl transition-all ${
               selectedAnswer === option
                 ? isCorrect
                   ? 'bg-green-500 hover:bg-green-500 text-white'
                   : 'bg-red-500 hover:bg-red-500 text-white'
                 : 'bg-muted hover:bg-accent text-foreground'
             }`}
+            style={{ height: 'clamp(64px, 17vmin, 96px)', fontSize: 'clamp(28px, 8vmin, 36px)' }}
           >
             {option}
           </Button>
@@ -112,7 +113,7 @@ export default function Assessment({ onNext, learnerCompletedLetters }: Assessme
       </div>
 
       {showFeedback && (
-        <div className={`text-center p-6 rounded-2xl ${isCorrect ? 'bg-green-100' : 'bg-red-100'}`}>
+        <div className={`text-center rounded-2xl ${isCorrect ? 'bg-green-100' : 'bg-red-100'}`} style={{ padding: 'clamp(10px, 3vmin, 24px)' }}>
           {isCorrect ? (
             <div>
               <p className="text-4xl mb-2">✨</p>
@@ -135,11 +136,12 @@ export default function Assessment({ onNext, learnerCompletedLetters }: Assessme
         <div className="flex justify-center">
           <Button
             onClick={handleContinue}
-            className={`h-14 px-8 text-xl font-fredoka font-bold rounded-2xl ${
+            className={`px-8 font-fredoka font-bold rounded-2xl ${
               score >= 3
                 ? 'bg-primary hover:bg-primary/90 text-white'
                 : 'bg-secondary hover:bg-secondary/90 text-white'
             }`}
+            style={{ height: 'clamp(44px, 9vmin, 56px)', fontSize: 'clamp(15px, 3.5vmin, 20px)' }}
           >
             {score >= 3 ? '🎓 Letter Mastered!' : 'Try Again'}
           </Button>

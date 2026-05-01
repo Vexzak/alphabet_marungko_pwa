@@ -198,7 +198,7 @@ export default function Home() {
 
     const updatedLearners = learners.map(l => {
       if (l.id === activeLearner.id) {
-        const newCompletedLetters = [...new Set([...l.completedLetters, letterKey.toLowerCase()])];
+        const newCompletedLetters = Array.from(new Set([...l.completedLetters, letterKey.toLowerCase()]));
         const weekDay = calculateWeekDay(newCompletedLetters);
         const updated = {
           ...l,
@@ -352,18 +352,25 @@ export default function Home() {
       <div
         className="min-h-screen w-full flex flex-col items-center justify-center p-4"
         style={{
-          backgroundImage: 'url(https://d2xsxph8kpxj0f.cloudfront.net/310519663372738420/5YYiob29hdgWf3rvoHMtnj/home-screen-background-ZZ98N45DQGex9TwQtauwVx.webp)',
+          position: 'relative',
+          backgroundImage: "url('/intro_bg.jpeg')",
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
       >
-        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-8 max-w-md w-full shadow-2xl">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-fredoka font-bold text-primary mb-2">AlpabeTitik</h1>
-            <p className="text-lg text-foreground">Magandang Araw Bata!</p>
-          </div>
-
-          <div className="space-y-3">
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            bottom: 'clamp(24px, 7vh, 72px)',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 'clamp(18px, 5vw, 46px)',
+            width: 'min(96vw, 760px)',
+          }}
+        >
             <button
               onClick={() => {
                 playBackgroundMusic();
@@ -371,21 +378,61 @@ export default function Home() {
                 setShowLearnersModal(true);
                 setShowAddForm(true);
               }}
-              style={{ width: '100%', background: '#FF6B6B', boxShadow: '0 6px 0 #c94b4b', borderRadius: '18px', border: 'none', height: '56px', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 700, fontSize: '20px', color: '#fff', cursor: 'pointer', transition: 'transform 0.1s, box-shadow 0.1s' }}
-              {...press('#c94b4b')}
+              aria-label="Simulang Matuto"
+              style={{
+                width: 'clamp(170px, 39vw, 330px)',
+                border: 'none',
+                background: 'transparent',
+                padding: 0,
+                cursor: 'pointer',
+                transition: 'transform 0.1s',
+                fontSize: 0,
+                filter: 'drop-shadow(0 0 10px #FFE65A) drop-shadow(0 0 22px rgba(255, 213, 0, 0.8))',
+                animation: 'playButtonPulse 1.15s ease-in-out infinite',
+              }}
+              onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px) scale(0.98)'; }}
+              onMouseUp={(e) => { e.currentTarget.style.transform = ''; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = ''; }}
+              onTouchStart={(e) => { e.currentTarget.style.transform = 'translateY(4px) scale(0.98)'; }}
+              onTouchEnd={(e) => { e.currentTarget.style.transform = ''; }}
             >
-              Simulang Matuto 🚀
+              <img src="/play_button.png" alt="Simulang Matuto" style={{ display: 'block', width: '100%', height: 'auto' }} />
             </button>
 
             <button
               onClick={() => { playBackgroundMusic(); playIntroSound(); setShowLearnersModal(true); setShowAddForm(false); }}
-              style={{ width: '100%', background: '#1DD1A1', boxShadow: '0 6px 0 #13a077', borderRadius: '18px', border: 'none', height: '56px', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 700, fontSize: '20px', color: '#fff', cursor: 'pointer', transition: 'transform 0.1s, box-shadow 0.1s' }}
-              {...press('#13a077')}
+              aria-label="Mga Mag-aaral"
+              style={{
+                width: 'clamp(170px, 39vw, 330px)',
+                border: 'none',
+                background: 'transparent',
+                padding: 0,
+                cursor: 'pointer',
+                transition: 'transform 0.1s',
+                fontSize: 0,
+                filter: 'drop-shadow(0 18px 18px rgba(0, 0, 0, 0.38))',
+              }}
+              onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px) scale(0.98)'; }}
+              onMouseUp={(e) => { e.currentTarget.style.transform = ''; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = ''; }}
+              onTouchStart={(e) => { e.currentTarget.style.transform = 'translateY(4px) scale(0.98)'; }}
+              onTouchEnd={(e) => { e.currentTarget.style.transform = ''; }}
             >
-              👧 Mga Mag-aaral {learners.length > 0 && `(${learners.length})`}
+              <img src="/acc_button.png" alt="Mga Mag-aaral" style={{ display: 'block', width: '100%', height: 'auto' }} />
             </button>
           </div>
-        </div>
+          <style>{`
+            @keyframes playButtonPulse {
+              0%, 100% {
+                transform: translateY(0) scale(1);
+                filter: drop-shadow(0 0 10px #FFE65A) drop-shadow(0 0 22px rgba(255, 213, 0, 0.8));
+              }
+              50% {
+                transform: translateY(-8px) scale(1.08);
+                filter: drop-shadow(0 0 16px #FFF27A) drop-shadow(0 0 34px rgba(255, 213, 0, 1));
+              }
+            }
+          `}</style>
 
         {/* ── Learners Modal ── */}
         {showLearnersModal && (
@@ -670,7 +717,7 @@ export default function Home() {
             flex: 1, overflowY: 'auto', overflowX: 'hidden',
             scrollbarWidth: 'none', msOverflowStyle: 'none',
             display: 'flex', flexDirection: 'column', alignItems: 'center',
-            justifyContent: 'center', padding: '12px 16px 16px', gap: '14px',
+            justifyContent: 'flex-start', padding: 'clamp(8px, 2vh, 16px)', gap: 'clamp(8px, 2vh, 14px)',
           }}
         >
 
@@ -690,7 +737,13 @@ export default function Home() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 110px)', gap: '14px', justifyContent: 'center' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(clamp(58px, 15vmin, 110px), clamp(58px, 15vmin, 110px)))',
+            gap: 'clamp(8px, 2vmin, 14px)',
+            justifyContent: 'center',
+            width: 'min(96vw, 760px)',
+          }}>
             {marungkoSorted.map((letter, idx) => {
               const color = tileColors[colorGrid[idx]];
               const isCompleted = completedLetters.includes(letter.letter.toLowerCase());
@@ -739,7 +792,7 @@ export default function Home() {
                       boxShadow: `0 5px 0 ${tileShadow}`,
                       borderRadius: '16px',
                       border: isCompleted ? '3px solid rgba(255,255,255,0.5)' : isNext ? '3px solid rgba(255,255,255,0.6)' : 'none',
-                      width: '110px', height: '110px',
+                      width: 'clamp(58px, 15vmin, 110px)', height: 'clamp(58px, 15vmin, 110px)',
                       display: 'flex', flexDirection: 'column', alignItems: 'center',
                       justifyContent: 'center',
                       cursor: isLocked ? 'not-allowed' : 'pointer',
@@ -798,10 +851,10 @@ export default function Home() {
                       <span style={{ fontSize: '26px', lineHeight: 1 }}>🔒</span>
                     ) : (
                       <>
-                        <span style={{ fontSize: '46px', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 700, color: tileText, lineHeight: 1 }}>
+                        <span style={{ fontSize: 'clamp(26px, 6.2vmin, 46px)', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 700, color: tileText, lineHeight: 1 }}>
                           {letter.uppercase}
                         </span>
-                        <span style={{ fontSize: '36px', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 600, color: tileText, opacity: 0.85, lineHeight: 1 }}>
+                        <span style={{ fontSize: 'clamp(20px, 5vmin, 36px)', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 600, color: tileText, opacity: 0.85, lineHeight: 1 }}>
                           {letter.lowercase}
                         </span>
                       </>
@@ -821,7 +874,7 @@ export default function Home() {
                   {/* Locked tooltip */}
                   {lockedTooltipIdx === idx && (
                     <div style={{
-                      position: 'absolute', bottom: '88px', left: '50%',
+                      position: 'absolute', bottom: 'calc(clamp(58px, 15vmin, 110px) - 22px)', left: '50%',
                       transform: 'translateX(-50%)',
                       background: 'rgba(0,0,0,0.78)', color: '#fff',
                       borderRadius: '10px', padding: '6px 10px',
@@ -956,17 +1009,17 @@ export default function Home() {
 
       <div
         style={{
-          flex: 1, minHeight: 0, overflow: 'hidden',
+          flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
           width: '100%', display: 'flex', flexDirection: 'column',
         }}
       >
         {currentPhase === 'anticipatory' && (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 16px' }}>
-            <h2 className="text-3xl font-fredoka font-bold text-foreground mb-4 text-center">
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'clamp(8px, 2vh, 16px)' }}>
+            <h2 className="font-fredoka font-bold text-foreground mb-4 text-center" style={{ fontSize: 'clamp(20px, 5vmin, 30px)', lineHeight: 1.15 }}>
               HALI NA'T PAG-ARALAN NATIN ANG LETRANG{' '}
               <span className="text-primary">{currentLetter.uppercase}</span>!
             </h2>
-            <p className="text-lg text-muted-foreground mb-8 text-center">
+            <p className="text-muted-foreground mb-8 text-center" style={{ fontSize: 'clamp(14px, 3vmin, 18px)' }}>
               Pindutin ang pindutan para mag simula!
             </p>
             <div className="flex flex-col items-center gap-3">
@@ -988,13 +1041,13 @@ export default function Home() {
         )}
 
         {currentPhase === 'instruction' && (
-          <div style={{ flex: 1, minHeight: 0, padding: '0 16px 16px', maxWidth: '56rem', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, minHeight: 0, padding: '0 clamp(8px, 2vw, 16px) clamp(8px, 2vh, 16px)', maxWidth: '56rem', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
             <LetterInstruction onNext={() => setCurrentPhase('guided')} />
           </div>
         )}
 
         {currentPhase === 'guided' && (
-          <div style={{ flex: 1, minHeight: 0, padding: '0 16px 16px', maxWidth: '56rem', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, minHeight: 0, padding: '0 clamp(8px, 2vw, 16px) clamp(8px, 2vh, 16px)', maxWidth: '56rem', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
             <StructuredActivity
               onNext={() => setCurrentPhase('independent')}
               learnerCompletedLetters={activeLearner?.completedLetters || []}
@@ -1013,7 +1066,7 @@ export default function Home() {
         )}
 
         {currentPhase === 'assessment' && (
-          <div style={{ flex: 1, minHeight: 0, padding: '0 16px 16px', maxWidth: '56rem', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, minHeight: 0, padding: '0 clamp(8px, 2vw, 16px) clamp(8px, 2vh, 16px)', maxWidth: '56rem', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
             <Assessment
               onNext={() => {
                 if (currentLetter) {
