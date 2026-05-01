@@ -668,21 +668,21 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
               alt={tracingAsset.word}
               className={`tracing-side-image ${idleBounce ? 'img-idle-bounce' : ''}`}
               style={{
-                position: 'absolute',
-                top: '50%',
-                left: '-30%',
+                position: 'fixed',
+                top: '56%',
+                left: 'clamp(4px, 1vw, 12px)',
                 transform: 'translateY(-50%)',
-                width: '35%',
-                height: '80%',
+                width: 'clamp(150px, 28vw, 360px)',
+                height: 'clamp(220px, 72dvh, 520px)',
                 objectFit: 'contain',
-                zIndex: 10,
+                zIndex: 30,
                 pointerEvents: 'none',
                 filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.18))',
               }}
             />
           )}
 
-          <div style={{
+          <div className="tracing-canvas-row" style={{
             width: '100%',
             height: '100%',
             display: 'flex',

@@ -155,9 +155,9 @@
 @media (orientation: landscape) and (max-height: 480px) {
   .tracing-side-image {
     opacity: 0.85;
-    left: -12% !important;
-    width: 24% !important;
-    height: 70% !important;
+    left: 4px !important;
+    width: clamp(120px, 24vw, 220px) !important;
+    height: clamp(160px, 64dvh, 320px) !important;
   }
 
   .feedback-popup {
@@ -169,7 +169,8 @@
 
 @media (orientation: landscape) and (max-height: 380px) {
   .tracing-side-image {
-    display: none !important;
+    width: clamp(92px, 20vw, 150px) !important;
+    height: clamp(120px, 56dvh, 240px) !important;
   }
 }
 
