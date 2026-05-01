@@ -43,13 +43,10 @@ function calculateWeekDay(completedLetters: string[]): { week: number; day: numb
 }
 
 // ── Lock/unlock helper ────────────────────────────────────────────────────────
-// A letter is unlocked if it is 'm' (always first) OR every letter before it
-// in MARUNGKO_ORDER has been completed.
 function isLetterUnlocked(letterKey: string, completedLetters: string[]): boolean {
   const idx = MARUNGKO_ORDER.indexOf(letterKey.toLowerCase());
-  if (idx === -1) return false; // unknown letter — keep locked
-  if (idx === 0) return true;   // 'm' is always available
-  // All letters before this one must be completed
+  if (idx === -1) return false;
+  if (idx === 0) return true;
   return MARUNGKO_ORDER.slice(0, idx).every(prev => completedLetters.includes(prev));
 }
 
@@ -187,10 +184,39 @@ export default function Home() {
   const introAudioRef = useRef<HTMLAudioElement | null>(null);
   const introPlayedRef = useRef(false);
 
+  // ── NEW: single shared "ting" audio ref so it never stacks ──
+  const tingAudioRef = useRef<HTMLAudioElement | null>(null);
+
   // Persist learners whenever they change
   useEffect(() => {
     saveLearners(learners);
   }, [learners]);
+
+  // ── NEW: initialise the ting audio once ──
+  useEffect(() => {
+    tingAudioRef.current = new Audio('/ting.mp3');
+    tingAudioRef.current.volume = 1;
+    return () => {
+      tingAudioRef.current?.pause();
+    };
+  }, []);
+
+  // ── NEW: play ting — always cut any in-progress playback first ──
+  const playTing = () => {
+    const audio = tingAudioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+    audio.play().catch(() => {/* autoplay policy — silently ignore */});
+  };
+
+  // ── NEW: stop ting (called on mouse-leave) ──
+  const stopTing = () => {
+    const audio = tingAudioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+  };
 
   // ── Function to mark letter as complete and update learner ──
   const markLetterComplete = (letterKey: string) => {
@@ -245,7 +271,7 @@ export default function Home() {
     chooseAudioRef.current.play().catch((err) => {
       console.log('Choose sound playback failed:', err);
     });
-  };//
+  };
 
   const playIntroSound = () => {
     if (introPlayedRef.current) return;
@@ -301,7 +327,6 @@ export default function Home() {
   };
 
   const handleSelectLetter = (letter: (typeof allLetters)[number]) => {
-    // Only allow selecting unlocked letters in the A-Z quick picker
     if (!isLetterUnlocked(letter.letter, activeLearner?.completedLetters ?? [])) return;
     setCurrentLetter(letter);
     setCurrentPhase('anticipatory');
@@ -309,7 +334,6 @@ export default function Home() {
   };
 
   const handleMarungkoStart = (letter: (typeof allLetters)[number]) => {
-    // Guard: if somehow a locked letter is tapped, do nothing
     if (!isLetterUnlocked(letter.letter, activeLearner?.completedLetters ?? [])) return;
     setCurrentLetter(letter);
     setCurrentPhase('instruction');
@@ -484,7 +508,7 @@ export default function Home() {
                       outline: 'none', width: '100%', boxSizing: 'border-box',
                     }}
                   />
-                  <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                     <button
                       onClick={handleAddLearner}
                       disabled={!newName.trim()}
@@ -503,17 +527,31 @@ export default function Home() {
                       <button
                         onClick={() => { setShowAddForm(false); setNewName(''); }}
                         style={{
-                          background: '#f0f0f0', boxShadow: '0 5px 0 #ccc',
+                          background: '#48DBFB', boxShadow: '0 5px 0 #28a7c9',
                           borderRadius: '14px', border: 'none', height: '48px',
                           padding: '0 16px', fontFamily: 'var(--font-fredoka, sans-serif)',
-                          fontWeight: 700, fontSize: '15px', color: '#555', cursor: 'pointer',
+                          fontWeight: 700, fontSize: '15px', color: '#004d6b', cursor: 'pointer',
                         }}
-                        {...pressSmall('#ccc')}
+                        {...pressSmall('#28a7c9')}
                       >
                         ← Bumalik
                       </button>
                     )}
                   </div>
+                  {learners.length > 0 && (
+                    <button
+                      onClick={() => { setShowAddForm(false); setNewName(''); }}
+                      style={{
+                        width: '100%', background: '#A29BFE', boxShadow: '0 5px 0 #6c63d4',
+                        borderRadius: '14px', border: 'none', height: '48px',
+                        fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 700,
+                        fontSize: '16px', color: '#fff', cursor: 'pointer',
+                      }}
+                      {...pressSmall('#6c63d4')}
+                    >
+                      May Pangalan na
+                    </button>
+                  )}
                 </div>
               ) : (
                 <>
@@ -710,7 +748,24 @@ export default function Home() {
           )}
         </div>
 
-        <style>{`.marungko-grid::-webkit-scrollbar { display: none; }`}</style>
+        <style>{`
+          .marungko-grid::-webkit-scrollbar { display: none; }
+
+          @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 3px rgba(255,159,67,0.5); }
+            50% { box-shadow: 0 0 0 7px rgba(255,159,67,0.15); }
+          }
+
+          /* ── Hover glow for unlocked tiles ── */
+          .letter-tile-unlocked {
+            transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, filter 0.15s ease !important;
+          }
+          .letter-tile-unlocked:hover {
+            transform: translateY(-4px) scale(1.08) !important;
+            filter: brightness(1.12) saturate(1.2);
+          }
+        `}</style>
+
         <div
           className="marungko-grid"
           style={{
@@ -749,10 +804,8 @@ export default function Home() {
               const isCompleted = completedLetters.includes(letter.letter.toLowerCase());
               const isUnlocked = isLetterUnlocked(letter.letter, completedLetters);
               const isLocked = !isUnlocked;
-              // The very next letter to study (first unlocked + not completed)
               const isNext = isUnlocked && !isCompleted;
 
-              // Visual overrides for lock states
               const tileBg = isLocked
                 ? '#d0d0d0'
                 : isCompleted
@@ -778,27 +831,30 @@ export default function Home() {
               return (
                 <div key={letter.letter} style={{ position: 'relative' }}>
                   <button
+                    // ── Add the hover CSS class only for unlocked tiles ──
+                    className={!isLocked ? 'letter-tile-unlocked' : undefined}
                     onClick={() => {
                       if (isLocked) {
-                        // Show a brief "locked" tooltip
                         setLockedTooltipIdx(idx);
                         setTimeout(() => setLockedTooltipIdx(null), 1500);
                         return;
                       }
                       handleMarungkoStart(letter);
                     }}
-                    style={{
-                      background: tileBg,
-                      boxShadow: `0 5px 0 ${tileShadow}`,
-                      borderRadius: '16px',
-                      border: isCompleted ? '3px solid rgba(255,255,255,0.5)' : isNext ? '3px solid rgba(255,255,255,0.6)' : 'none',
-                      width: 'clamp(58px, 15vmin, 110px)', height: 'clamp(58px, 15vmin, 110px)',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: isLocked ? 'not-allowed' : 'pointer',
-                      transition: 'transform 0.1s, box-shadow 0.1s',
-                      position: 'relative', overflow: 'hidden', flexShrink: 0,
-                      opacity: isLocked ? 0.7 : 1,
+                    // ── Hover: play ting + visual lift ──
+                    onMouseEnter={(e) => {
+                      if (isLocked) return;
+                      playTing();
+                      // The CSS class handles the visual lift; box-shadow update for the pressed shadow
+                      e.currentTarget.style.boxShadow = `0 8px 0 ${tileShadow}, 0 0 18px 4px ${tileBg}99`;
+                    }}
+                    // ── Leave: stop ting + reset styles ──
+                    onMouseLeave={(e) => {
+                      if (isLocked) return;
+                      stopTing();
+                      e.currentTarget.style.transform = '';
+                      e.currentTarget.style.boxShadow = `0 5px 0 ${tileShadow}`;
+                      e.currentTarget.style.filter = '';
                     }}
                     onMouseDown={(e) => {
                       if (isLocked) return;
@@ -812,13 +868,27 @@ export default function Home() {
                     }}
                     onTouchStart={(e) => {
                       if (isLocked) return;
+                      playTing();
                       e.currentTarget.style.transform = 'translateY(3px)';
                       e.currentTarget.style.boxShadow = `0 2px 0 ${tileShadow}`;
                     }}
                     onTouchEnd={(e) => {
                       if (isLocked) return;
+                      stopTing();
                       e.currentTarget.style.transform = '';
                       e.currentTarget.style.boxShadow = `0 5px 0 ${tileShadow}`;
+                    }}
+                    style={{
+                      background: tileBg,
+                      boxShadow: `0 5px 0 ${tileShadow}`,
+                      borderRadius: '16px',
+                      border: isCompleted ? '3px solid rgba(255,255,255,0.5)' : isNext ? '3px solid rgba(255,255,255,0.6)' : 'none',
+                      width: 'clamp(58px, 15vmin, 110px)', height: 'clamp(58px, 15vmin, 110px)',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: isLocked ? 'not-allowed' : 'pointer',
+                      position: 'relative', overflow: 'hidden', flexShrink: 0,
+                      opacity: isLocked ? 0.7 : 1,
                     }}
                   >
                     {/* Order number */}
@@ -889,14 +959,6 @@ export default function Home() {
               );
             })}
           </div>
-
-          {/* Pulse animation keyframes */}
-          <style>{`
-            @keyframes pulse {
-              0%, 100% { box-shadow: 0 0 0 3px rgba(255,159,67,0.5); }
-              50% { box-shadow: 0 0 0 7px rgba(255,159,67,0.15); }
-            }
-          `}</style>
         </div>
       </div>
     );
@@ -985,6 +1047,8 @@ export default function Home() {
                       <button
                         key={letter.letter}
                         onClick={() => handleSelectLetter(letter)}
+                        onMouseEnter={() => { if (unlocked) playTing(); }}
+                        onMouseLeave={() => { if (unlocked) stopTing(); }}
                         title={!unlocked ? 'Tapusin muna ang naunang titik!' : ''}
                         className={`h-10 rounded-lg font-fredoka font-bold transition relative ${
                           !unlocked
@@ -993,7 +1057,7 @@ export default function Home() {
                               ? 'bg-primary text-white'
                               : completed
                                 ? 'bg-green-400 text-white'
-                                : 'bg-muted hover:bg-accent text-foreground'
+                                : 'bg-muted hover:bg-accent hover:scale-110 text-foreground'
                         }`}
                       >
                         {!unlocked ? '🔒' : letter.uppercase}

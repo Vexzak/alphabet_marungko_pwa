@@ -242,7 +242,7 @@ function LetterSidebar({ uppercase, lowercase }: { uppercase: string; lowercase:
 }
 
 export default function StructuredActivity({ onNext, mode = 'guided', learnerCompletedLetters }: StructuredActivityProps) {
-  const { currentLetter, allLetters, updateLetterProgress, consumeNextAsset, advanceQueue } = useApp();
+  const { currentLetter, allLetters, updateLetterProgress, consumeNextAsset } = useApp();
 
   const sfxRef     = useRef<HTMLAudioElement | null>(null);
   const panutoRef  = useRef<HTMLAudioElement | null>(null);
@@ -266,11 +266,23 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
     setIsPanuto4Playing(false);
   }, []);
 
-  const playSound = useCallback((src: string) => {
+  const playSound = useCallback((src: string, onEnded?: () => void) => {
     stopSfx();
     const audio = new Audio(src);
     sfxRef.current = audio;
-    audio.play().catch((err) => console.error('Error playing sound:', err));
+    audio.onended = () => {
+      if (sfxRef.current === audio) {
+        sfxRef.current = null;
+      }
+      onEnded?.();
+    };
+    audio.play().catch((err) => {
+      console.error('Error playing sound:', err);
+      if (sfxRef.current === audio) {
+        sfxRef.current = null;
+      }
+      onEnded?.();
+    });
   }, [stopSfx]);
 
   const playPanuto = useCallback(() => {
@@ -325,6 +337,7 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
   const [isShaking, setIsShaking] = useState(false);
   const [isPressed, setIsPressed] = useState(false);
   const [showReplayBtn, setShowReplayBtn] = useState(false);
+  const [choicesReady, setChoicesReady] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
@@ -354,7 +367,7 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
   const [rotations, setRotations] = useState(generateRotations);
   const slotToOption = [0, 1, 2].map((slot) => slotOrder.indexOf(slot));
 
-  const choicesUnlocked = mode !== 'guided' || clickCount >= 4;
+  const choicesUnlocked = mode !== 'guided' || choicesReady;
 
   useEffect(() => {
     if (currentLetter) {
@@ -363,6 +376,7 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
       setLastAsset(first);
       setClickCount(0);
       setShowReplayBtn(false);
+      setChoicesReady(false);
       setOptions(getOptions());
       if (mode === 'guided') playPanuto();
       if (mode === 'independent') playPanuto3();
@@ -396,19 +410,26 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
     setIsShaking(true);
     setTimeout(() => setIsShaking(false), 600);
     const next = clickCount + 1;
+    if (next > TOTAL_ROUNDS) return;
     setClickCount(next);
+
+    let assetToPlay = currentAsset;
     if (next === 1) {
-      playSound(currentAsset.sound);
-    } else if (next === 2 || next === 3) {
+      setLastAsset(currentAsset);
+    } else {
       const nextAsset = consumeNextAsset();
       if (nextAsset) {
         setCurrentAsset(nextAsset);
         setLastAsset(nextAsset);
-        playSound(nextAsset.sound);
-      } else {
-        playSound(currentAsset.sound);
+        assetToPlay = nextAsset;
       }
     }
+
+    playSound(assetToPlay.sound, () => {
+      if (next >= TOTAL_ROUNDS) {
+        setChoicesReady(true);
+      }
+    });
   };
 
   const handleReplayLastSound = () => {
@@ -441,6 +462,8 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
     setSlotOrder(generateSlotOrder());
     setRotations(generateRotations());
     setRound(1);
+    setClickCount(0);
+    setChoicesReady(false);
     setRoundKey((k) => k + 1);
     if (currentLetter) {
       setCurrentAsset(consumeNextAsset());
@@ -495,7 +518,7 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
       {Array.from({ length: TOTAL_ROUNDS }).map((_, i) => (
         <div key={i} style={{
           width: 12, height: 12, borderRadius: '50%',
-          background: i < round ? '#FF8C42' : '#e2e8f0',
+          background: i < clickCount ? '#FF8C42' : '#e2e8f0',
           transition: 'background 0.3s',
         }} />
       ))}

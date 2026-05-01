@@ -45,6 +45,20 @@ const LETTER_ASSETS: Record<string, LetterAsset[]> = {
     { word: 'medyas',   image: '/letters/M-medyas.png',   sound: '/sounds/M_medyas.mp3'   },
     { word: 'malungay', image: '/letters/M-malungay.png', sound: '/sounds/M_malungay.mp3' },
   ],
+  s: [
+    { word: 'susi',    image: '/letters/S-susi.png',    sound: '/sounds/S_susi.mp3'    },
+    { word: 'saging',    image: '/letters/S-saging.png',    sound: '/sounds/S_saging.mp3'    },
+    { word: 'sarangola',    image: '/letters/S-sarangola.png',    sound: '/sounds/S_sarangola.mp3'    },
+    { word: 'sapatos',   image: '/letters/S-sapatos.png',   sound: '/sounds/S_sapatos.mp3'   },
+    { word: 'sandok', image: '/letters/S-sandok.png', sound: '/sounds/S_sandok.mp3' },
+  ],
+  a: [
+    { word: 'agila',    image: '/letters/A-agila.png',    sound: '/sounds/A_agila.mp3'    },
+    { word: 'apoy',    image: '/letters/A-apoy.png',    sound: '/sounds/A_apoy.mp3'    },
+    { word: 'aso',    image: '/letters/A-aso.png',    sound: '/sounds/A_aso.mp3'    },
+    { word: 'aklat',   image: '/letters/A-aklat.png',   sound: '/sounds/A_aklat.mp3'   },
+    { word: 'araw', image: '/letters/A-araw.png', sound: '/sounds/A_araw.mp3' },
+  ],
 };
 
 function shuffle<T>(arr: T[]): T[] {
@@ -117,6 +131,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // very first render — no useEffect delay.
   const queueRef      = useRef<LetterAsset[]>(buildQueue(MARUNGKO_LETTERS[0].letter));
   const queueIndexRef = useRef<number>(0);
+  const queueLetterRef = useRef<string>(MARUNGKO_LETTERS[0].letter);
+
+  const rebuildAssetQueue = useCallback((letter: string) => {
+    queueLetterRef.current = letter;
+    queueRef.current = buildQueue(letter);
+    queueIndexRef.current = 0;
+  }, []);
+
+  const setCurrentLetterAndQueue = useCallback((letter: LetterProgress | null) => {
+    if (letter) {
+      rebuildAssetQueue(letter.letter);
+    } else {
+      queueLetterRef.current = '';
+      queueRef.current = [];
+      queueIndexRef.current = 0;
+    }
+    setCurrentLetter(letter);
+  }, [rebuildAssetQueue]);
 
   // 🔧 FIX: depend on the whole currentLetter object (not just .letter string).
   // When a new user is created, currentLetter may be replaced with a *new object*
@@ -125,8 +157,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // object reference catches that case.
   useEffect(() => {
     if (!currentLetter) return;
-    queueRef.current      = buildQueue(currentLetter.letter);
-    queueIndexRef.current = 0;
+    if (queueLetterRef.current !== currentLetter.letter) {
+      rebuildAssetQueue(currentLetter.letter);
+    }
   }, [currentLetter]); // 🔧 whole object, not currentLetter?.letter
 
   // 🔧 FIX: resetForNewUser — called right after a new kid profile is created.
@@ -134,18 +167,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resetForNewUser = useCallback(() => {
     const first = MARUNGKO_LETTERS[0];
     // Reset queue first (synchronous, ref-based — no race)
-    queueRef.current      = buildQueue(first.letter);
-    queueIndexRef.current = 0;
+    rebuildAssetQueue(first.letter);
     // Then update React state (triggers re-render with clean data)
     setCurrentLetter({ ...first }); // spread → new object reference → useEffect above also fires as a safety net
     setCurrentPhase('anticipatory');
-  }, []);
+  }, [rebuildAssetQueue]);
 
   const resetAssetQueue = useCallback(() => {
     if (!currentLetter) return;
-    queueRef.current      = buildQueue(currentLetter.letter);
-    queueIndexRef.current = 0;
-  }, [currentLetter]);
+    rebuildAssetQueue(currentLetter.letter);
+  }, [currentLetter, rebuildAssetQueue]);
 
   const peekCurrentAsset = useCallback((): LetterAsset | null => {
     const q = queueRef.current;
@@ -161,21 +192,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     queueIndexRef.current += 1;
 
     if (queueIndexRef.current >= q.length) {
-      queueRef.current      = buildQueue(currentLetter?.letter ?? '');
+      queueRef.current      = buildQueue(queueLetterRef.current);
       queueIndexRef.current = 0;
     }
 
     return asset;
-  }, [currentLetter?.letter]);
+  }, []);
 
   const advanceQueue = useCallback((steps = 1) => {
     const q = queueRef.current;
     if (!q.length) return;
     queueIndexRef.current = (queueIndexRef.current + steps) % q.length;
     if (queueIndexRef.current === 0) {
-      queueRef.current = buildQueue(currentLetter?.letter ?? '');
+      queueRef.current = buildQueue(queueLetterRef.current);
     }
-  }, [currentLetter?.letter]);
+  }, []);
 
   const allLetters        = MARUNGKO_LETTERS;
   const completedLetters  = Object.values(letterProgress).filter((l) => l.completed).length;
@@ -185,7 +216,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider
       value={{
         currentLetter,
-        setCurrentLetter,
+        setCurrentLetter: setCurrentLetterAndQueue,
         letterProgress,
         updateLetterProgress,
         currentPhase,
