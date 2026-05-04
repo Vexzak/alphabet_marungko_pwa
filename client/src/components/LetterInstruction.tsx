@@ -56,7 +56,7 @@ const LETTERS_LOWER: Record<string, LetterDef> = {
   a: { path: 'M280,100 L280,285 Q280,320 310,325 M280,155 Q280,100 220,100 Q130,100 130,200 Q130,310 220,310 Q280,310 280,255', sw: 46, guides: mg2([[280,100],[280,285],[295,315],[310,325]], O, [[280,155],[260,105],[220,100],[165,105],[135,150],[130,200],[135,255],[165,300],[220,310],[268,310],[280,290],[280,255]], T) },
   b: { path: 'M120,50 L120,310 M120,175 Q120,100 200,100 Q290,100 290,205 Q290,310 200,310 Q120,310 120,235', sw: 46, guides: mg2([[120,50],[120,310]], O, [[120,175],[140,108],[200,100],[258,108],[285,155],[290,205],[280,260],[245,305],[200,310],[155,305],[120,260],[120,235]], T) },
   c: { path: 'M280,148 Q255,100 205,100 Q120,100 120,205 Q120,310 205,310 Q255,310 280,262', sw: 46, guides: mg1([[280,148],[255,108],[205,100],[160,108],[130,148],[120,205],[130,262],[160,302],[205,310],[255,302],[280,262]], O) },
-  d: { path: 'M280,50 L280,310 M280,175 Q280,100 200,100 Q110,100 110,205 Q110,310 200,310 Q280,310 280,235', sw: 46, guides: mg2([[280,50],[280,310]], O, [[280,175],[260,108],[200,100],[145,108],[115,155],[110,205],[120,260],[155,305],[200,310],[245,305],[280,260],[280,235]], T) },
+  d: { path: 'M280,50 L280,310 M280,175 Q280,100 200,100 Q110,100 110,205 Q110,310 200,310 Q245,305 280,260 Q280,245 280,235', sw: 46, guides: mg2([[280,50],[280,310]], O, [[280,175],[260,108],[200,100],[145,108],[115,155],[110,205],[120,260],[155,305],[200,310],[245,305],[280,260],[280,235]], T) },
   e: { path: 'M120,215 L285,215 Q285,100 200,100 Q115,100 115,205 Q115,310 200,310 Q255,310 282,268', sw: 46, guides: mg2([[120,215],[285,215]], O, [[285,215],[285,155],[255,108],[200,100],[148,108],[120,155],[115,205],[125,262],[160,305],[200,310],[255,302],[282,268]], T) },
   f: { path: 'M260,80 Q240,50 210,50 Q170,50 165,90 L165,310 M120,165 L230,165', sw: 44, guides: mg2([[260,80],[240,55],[210,50],[178,55],[165,90],[165,310]], O, [[120,165],[230,165]], T) },
   g: { path: 'M280,155 Q280,100 220,100 Q130,100 130,200 Q130,305 220,305 Q280,305 280,255 L280,320 Q280,380 210,380 Q165,380 140,355', sw: 46, guides: mg2([[280,155],[260,105],[220,100],[165,105],[135,150],[130,200],[135,252],[165,298],[220,305],[268,298],[280,255]], O, [[280,255],[280,320],[270,368],[210,380],[165,376],[140,355]], T) },
@@ -69,7 +69,7 @@ const LETTERS_LOWER: Record<string, LetterDef> = {
   n: { path: 'M110,310 L110,155 Q110,100 175,100 Q255,100 255,178 L255,310', sw: 46, guides: mg2([[110,310],[110,155],[122,108],[175,100],[222,108],[248,148],[255,178],[255,310]], O, [[110,155],[255,178]], T) },
   o: { path: 'M200,100 Q290,100 290,205 Q290,310 200,310 Q110,310 110,205 Q110,100 200,100', sw: 48, guides: mg1([[200,100],[260,108],[288,155],[290,205],[282,260],[250,302],[200,310],[150,302],[118,260],[110,205],[118,150],[150,108],[200,100]], O) },
   p: { path: 'M120,155 Q120,100 200,100 Q290,100 290,205 Q290,310 200,310 Q120,310 120,240 L120,385', sw: 46, guides: mg2([[120,155],[138,108],[200,100],[258,108],[285,155],[290,205],[280,260],[245,305],[200,310],[155,305],[120,260],[120,240]], O, [[120,240],[120,385]], T) },
-  q: { path: 'M280,155 Q280,100 200,100 Q110,100 110,205 Q110,310 200,310 Q280,310 280,240 L280,385', sw: 46, guides: mg2([[280,155],[260,108],[200,100],[145,108],[115,155],[110,205],[120,260],[155,305],[200,310],[245,305],[280,260],[280,240]], O, [[280,240],[280,385]], T) },
+  q: { path: 'M280,155 Q280,100 200,100 Q110,100 110,205 Q110,310 200,310 Q245,305 280,260 L280,240 L280,385', sw: 46, guides: mg2([[280,155],[260,108],[200,100],[145,108],[115,155],[110,205],[120,260],[155,305],[200,310],[245,305],[280,260],[280,240]], O, [[280,240],[280,385]], T) },
   r: { path: 'M120,310 L120,155 M120,190 Q140,100 220,100 Q252,100 265,118', sw: 44, guides: mg2([[120,310],[120,155],[120,190]], O, [[120,190],[142,118],[200,100],[245,108],[265,118]], T) },
   s: { path: 'M268,148 Q248,100 195,100 Q120,100 122,168 Q124,210 195,225 Q268,240 272,285 Q275,330 205,330 Q155,330 128,295', sw: 46, guides: mg1([[268,148],[248,108],[195,100],[148,108],[122,145],[122,168],[150,205],[195,225],[242,242],[268,272],[272,302],[250,325],[205,330],[162,328],[128,295]], O) },
   t: { path: 'M185,55 L185,295 Q185,315 210,315 M130,160 L248,160', sw: 44, guides: mg2([[185,55],[185,295],[195,310],[210,315]], O, [[130,160],[248,160]], T) },
@@ -82,6 +82,16 @@ const LETTERS_LOWER: Record<string, LetterDef> = {
 };
 
 const SOUND_PLAYS_NEEDED = 3;
+const ERASER_BRUSH = 40;
+
+type CrayonColor = { name: string; file: string; r: number; g: number; b: number; rainbow?: boolean };
+const CRAYONS: CrayonColor[] = [
+  { name: 'blue',    file: 'blue.png',    r: 59,  g: 130, b: 246 },
+  { name: 'red',     file: 'red.png',     r: 239, g: 68,  b: 68  },
+  { name: 'yellow',  file: 'yellow.png',  r: 250, g: 204, b: 21  },
+  { name: 'purple',  file: 'purple.png',  r: 168, g: 85,  b: 247 },
+  { name: 'rainbow', file: 'rainbow.png', r: 0,   g: 0,   b: 0,  rainbow: true },
+];
 
 // ── Helper: stop an audio element cleanly ────────────────────────────────────
 function stopAudio(ref: React.MutableRefObject<HTMLAudioElement | null>) {
@@ -114,8 +124,14 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
   const [isPlayingSound, setIsPlayingSound] = useState(false);
   const sfxRef = useRef<HTMLAudioElement | null>(null);
 
+  // ── Eraser mode ───────────────────────────────────────────────────────────
+  const [eraserMode, setEraserMode] = useState(false);
+  const [followerPos, setFollowerPos] = useState<{ x: number; y: number } | null>(null);
+  const followerVisible = followerPos !== null; // show follower for both eraser and crayons
+  const [selectedCrayon, setSelectedCrayon] = useState<CrayonColor>(CRAYONS[0]); // blue default
+  const rainbowHueRef = useRef(0);
+
   const playAssetSound = useCallback((src: string, onFinished?: () => void) => {
-    // Always stop whatever is currently playing first (no stacking)
     if (sfxRef.current) {
       sfxRef.current.pause();
       sfxRef.current.currentTime = 0;
@@ -125,7 +141,6 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
     const audio = new Audio(src);
     sfxRef.current = audio;
     setIsPlayingSound(true);
-    // Trigger pop animation on the image
     setSoundPop(false);
     requestAnimationFrame(() => setSoundPop(true));
     audio.onended = () => {
@@ -184,9 +199,7 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
 
   // ── When tracing completes: stop panuto, auto-play asset sound ────────────
   const handleTracingComplete = useCallback((asset: LetterAsset) => {
-    // FIX 1: Stop the panuto instruction audio so it doesn't stack with the asset sound
     stopAudio(panutoAudioRef);
-
     setPostTracingPhase('sound');
     setSoundPlayCount(1);
     playAssetSound(asset.sound);
@@ -196,8 +209,6 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
     if (!tracingAsset) return;
     const next = soundPlayCount + 1;
     setSoundPlayCount(next);
-    // playAssetSound always cuts any in-progress sound before starting the new one.
-    // On the final play, wait for it to fully finish before showing Excellent.
     if (next >= SOUND_PLAYS_NEEDED) {
       playAssetSound(tracingAsset.sound, () => setShowExcellent(true));
     } else {
@@ -210,12 +221,14 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
     setIsTracingComplete(false);
     setPostTracingPhase('none');
     setSoundPlayCount(0);
+    setEraserMode(false);
+    setSelectedCrayon(CRAYONS[0]);
+    rainbowHueRef.current = 0;
     setTracingAsset(consumeNextAsset());
     initCanvases();
     resetFill();
   };
 
-  // ── FIX 3: Stop asset sound when Continue is clicked ─────────────────────
   const handleContinue = useCallback(() => {
     stopAudio(sfxRef);
     onNext();
@@ -357,6 +370,9 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
     setProgressLower(0);
     setPostTracingPhase('none');
     setSoundPlayCount(0);
+    setEraserMode(false);
+    setSelectedCrayon(CRAYONS[0]);
+    rainbowHueRef.current = 0;
   }, [currentLetter]);
 
   useEffect(() => {
@@ -369,6 +385,35 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
     return () => window.removeEventListener('resize', handleResize);
   }, [initCanvases, resetFill]);
 
+  // ── Erase at position (uses destination-out composite) ───────────────────
+  const erase = useCallback((cx: number, cy: number, isUppercase: boolean) => {
+    const fc = isUppercase ? fillCanvasRefUpper.current : fillCanvasRefLower.current;
+    if (!fc) return;
+    const fctx = fc.getContext('2d')!;
+    const sz   = fc.width;
+    const br   = sc(ERASER_BRUSH, sz);
+
+    fctx.save();
+    fctx.globalCompositeOperation = 'destination-out';
+    fctx.beginPath();
+    fctx.arc(cx, cy, br, 0, Math.PI * 2);
+    fctx.fill();
+    fctx.restore();
+
+    // Recalculate progress after erase
+    const mask = isUppercase ? maskRefUpper.current : maskRefLower.current;
+    if (!mask) return;
+    const full = fctx.getImageData(0, 0, sz, sz).data;
+    const md   = mask.data;
+    let total = 0, filled = 0;
+    for (let i = 3; i < md.length; i += 4) {
+      if (md[i] > 128) { total++; if (full[i] > 50) filled++; }
+    }
+    const pct = total > 0 ? Math.min(100, Math.round(filled / total * 100)) : 0;
+    if (isUppercase) setProgressUpper(pct);
+    else             setProgressLower(pct);
+  }, []);
+
   const paint = useCallback((cx: number, cy: number, isUppercase: boolean) => {
     const fc   = isUppercase ? fillCanvasRefUpper.current : fillCanvasRefLower.current;
     const mask = isUppercase ? maskRefUpper.current       : maskRefLower.current;
@@ -377,6 +422,25 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
     const sz   = fc.width;
     const br   = sc(BRUSH, sz);
     const md   = mask.data;
+
+    // Compute this brush stamp's color — rainbow advances once per stamp (solid blob, clean color shift)
+    let stampR = selectedCrayon.r, stampG = selectedCrayon.g, stampB = selectedCrayon.b;
+    if (selectedCrayon.rainbow) {
+      rainbowHueRef.current = (rainbowHueRef.current + 4) % 360;
+      const h = rainbowHueRef.current / 360;
+      const hue2rgb = (p: number, q: number, t: number) => {
+        if (t < 0) t += 1; if (t > 1) t -= 1;
+        if (t < 1/6) return p + (q - p) * 6 * t;
+        if (t < 1/2) return q;
+        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+      };
+      const q = 0.5 * (1 + 1); // l=0.55, s=1 → q = l + s - l*s = 0.55+1-0.55 = 1 → clamp
+      const qq = 1, pp = 2 * 0.55 - qq;
+      stampR = Math.round(hue2rgb(pp, qq, h + 1/3) * 255);
+      stampG = Math.round(hue2rgb(pp, qq, h) * 255);
+      stampB = Math.round(hue2rgb(pp, qq, h - 1/3) * 255);
+    }
 
     const x0 = Math.max(0, Math.floor(cx - br));
     const y0 = Math.max(0, Math.floor(cy - br));
@@ -391,7 +455,7 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
         if (dx * dx + dy * dy > br * br) continue;
         if (md[(py * sz + px) * 4 + 3] < 128) continue;
         const fi = ((py - y0) * fw + (px - x0)) * 4;
-        fd.data[fi] = 255; fd.data[fi + 1] = 140; fd.data[fi + 2] = 66; fd.data[fi + 3] = 230;
+        fd.data[fi] = stampR; fd.data[fi + 1] = stampG; fd.data[fi + 2] = stampB; fd.data[fi + 3] = 230;
       }
     }
     fctx.putImageData(fd, x0, y0);
@@ -423,7 +487,7 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
     } else {
       setHint('Hold and drag to fill the letters!');
     }
-  }, [progressUpper, progressLower, isTracingComplete, currentLetter, updateLetterProgress, tracingAsset, handleTracingComplete]);
+  }, [progressUpper, progressLower, isTracingComplete, currentLetter, updateLetterProgress, tracingAsset, handleTracingComplete, selectedCrayon]);
 
   const drawCursor = useCallback((x: number, y: number, isUppercase: boolean) => {
     const cc = isUppercase ? cursorCanvasRefUpper.current : cursorCanvasRefLower.current;
@@ -442,12 +506,29 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
     return [(cx - r.left) * (cc.width / r.width), (cy - r.top) * (cc.height / r.height)];
   };
 
-  const handleMouseDown  = (e: React.MouseEvent<HTMLCanvasElement>,  isu: boolean) => { (isu ? pressingRefUpper : pressingRefLower).current = true;  const [x,y] = getPos(e, isu ? cursorCanvasRefUpper : cursorCanvasRefLower); paint(x,y,isu); drawCursor(x,y,isu); };
-  const handleMouseMove  = (e: React.MouseEvent<HTMLCanvasElement>,  isu: boolean) => { const [x,y] = getPos(e, isu ? cursorCanvasRefUpper : cursorCanvasRefLower); drawCursor(x,y,isu); if ((isu ? pressingRefUpper : pressingRefLower).current) paint(x,y,isu); };
+  // ── Unified action: paint or erase depending on mode ─────────────────────
+  const eraserModeRef = useRef(eraserMode);
+  useEffect(() => { eraserModeRef.current = eraserMode; }, [eraserMode]);
+
+  const applyBrush = useCallback((x: number, y: number, isu: boolean) => {
+    if (eraserModeRef.current) erase(x, y, isu);
+    else paint(x, y, isu);
+  }, [erase, paint]);
+
+  const handleMouseDown  = (e: React.MouseEvent<HTMLCanvasElement>,  isu: boolean) => { (isu ? pressingRefUpper : pressingRefLower).current = true;  const [x,y] = getPos(e, isu ? cursorCanvasRefUpper : cursorCanvasRefLower); applyBrush(x,y,isu); drawCursor(x,y,isu); updateFollower(e.clientX, e.clientY); };
+  const handleMouseMove  = (e: React.MouseEvent<HTMLCanvasElement>,  isu: boolean) => { const [x,y] = getPos(e, isu ? cursorCanvasRefUpper : cursorCanvasRefLower); drawCursor(x,y,isu); updateFollower(e.clientX, e.clientY); if ((isu ? pressingRefUpper : pressingRefLower).current) applyBrush(x,y,isu); };
   const handleMouseUp    = (isu: boolean) => { (isu ? pressingRefUpper : pressingRefLower).current = false; };
-  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>, isu: boolean) => { e.preventDefault(); (isu ? pressingRefUpper : pressingRefLower).current = true;  const [x,y] = getPos(e, isu ? cursorCanvasRefUpper : cursorCanvasRefLower); paint(x,y,isu); drawCursor(x,y,isu); };
-  const handleTouchMove  = (e: React.TouchEvent<HTMLCanvasElement>, isu: boolean) => { e.preventDefault(); const [x,y] = getPos(e, isu ? cursorCanvasRefUpper : cursorCanvasRefLower); drawCursor(x,y,isu); if ((isu ? pressingRefUpper : pressingRefLower).current) paint(x,y,isu); };
-  const handleTouchEnd   = (isu: boolean) => { (isu ? pressingRefUpper : pressingRefLower).current = false; };
+  const handleMouseLeave = (isu: boolean) => { (isu ? pressingRefUpper : pressingRefLower).current = false; clearFollower(); };
+  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>, isu: boolean) => { e.preventDefault(); (isu ? pressingRefUpper : pressingRefLower).current = true;  const [x,y] = getPos(e, isu ? cursorCanvasRefUpper : cursorCanvasRefLower); applyBrush(x,y,isu); drawCursor(x,y,isu); updateFollower(e.touches[0].clientX, e.touches[0].clientY); };
+  const handleTouchMove  = (e: React.TouchEvent<HTMLCanvasElement>, isu: boolean) => { e.preventDefault(); const [x,y] = getPos(e, isu ? cursorCanvasRefUpper : cursorCanvasRefLower); drawCursor(x,y,isu); updateFollower(e.touches[0].clientX, e.touches[0].clientY); if ((isu ? pressingRefUpper : pressingRefLower).current) applyBrush(x,y,isu); };
+  const handleTouchEnd   = (isu: boolean) => { (isu ? pressingRefUpper : pressingRefLower).current = false; clearFollower(); };
+
+  // Canvas cursor: hide native cursor when eraser active, show follower instead
+  const canvasCursorStyle = 'none'; // follower image replaces cursor for all tools
+
+  // Update floating eraser follower position
+  const updateFollower = (clientX: number, clientY: number) => setFollowerPos({ x: clientX, y: clientY });
+  const clearFollower  = () => setFollowerPos(null);
 
   const canvasPanel = (isUppercase: boolean) => (
     <div className="flex flex-col items-center flex-1 min-w-0" style={{ maxWidth: 'min(42vw, 52dvh, 500px)' }}>
@@ -463,14 +544,15 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
         <canvas
           ref={isUppercase ? cursorCanvasRefUpper : cursorCanvasRefLower}
           className="absolute inset-0 w-full h-full"
-          style={{ touchAction: 'none' }}
+          style={{ touchAction: 'none', cursor: canvasCursorStyle }}
           onMouseDown={(e) => handleMouseDown(e, isUppercase)}
           onMouseMove={(e) => handleMouseMove(e, isUppercase)}
           onMouseUp={() => handleMouseUp(isUppercase)}
-          onMouseLeave={() => handleMouseUp(isUppercase)}
+          onMouseLeave={() => handleMouseLeave(isUppercase)}
           onTouchStart={(e) => handleTouchStart(e, isUppercase)}
           onTouchMove={(e) => handleTouchMove(e, isUppercase)}
           onTouchEnd={() => handleTouchEnd(isUppercase)}
+          onTouchCancel={() => handleTouchEnd(isUppercase)}
         />
       </div>
       <div className="w-full mt-1" style={{ maxWidth: 280 }}>
@@ -479,7 +561,7 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
             className="h-full rounded-full transition-all duration-100"
             style={{
               width: `${isUppercase ? progressUpper : progressLower}%`,
-              background: '#FF8C42',
+              background: selectedCrayon.rainbow ? `hsl(${rainbowHueRef.current},85%,52%)` : `rgb(${selectedCrayon.r},${selectedCrayon.g},${selectedCrayon.b})`,
             }}
           />
         </div>
@@ -552,7 +634,168 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
         .img-sound-pop {
           animation: soundPop 0.65s cubic-bezier(0.36,0.07,0.19,0.97) forwards;
         }
+
+        /* Eraser tool button */
+        @keyframes eraserSelect {
+          0%   { transform: scale(1) rotate(0deg); }
+          40%  { transform: scale(1.2) rotate(-8deg); }
+          70%  { transform: scale(1.15) rotate(4deg); }
+          100% { transform: scale(1.18) rotate(-3deg) translateX(-4px); }
+        }
+        .eraser-btn {
+          position: fixed;
+          top: clamp(60px, 10vmin, 90px);
+          right: 8px;
+          z-index: 35;
+          width: clamp(64px, 12vmin, 90px);
+          height: clamp(64px, 12vmin, 90px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 16px;
+          cursor: pointer;
+          background: transparent;
+          border: none;
+          box-shadow: none;
+          -webkit-tap-highlight-color: transparent;
+          user-select: none;
+          transition: transform 0.2s;
+        }
+        .eraser-btn:active {
+          transform: scale(0.92);
+        }
+        .eraser-btn.active {
+          animation: eraserSelect 0.35s cubic-bezier(0.36,0.07,0.19,0.97) forwards;
+        }
+        .eraser-btn img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          pointer-events: none;
+          transition: filter 0.2s, transform 0.2s;
+          filter: drop-shadow(0 2px 6px rgba(0,0,0,0.2));
+        }
+        .eraser-btn.active img {
+          filter: drop-shadow(0 4px 12px rgba(255,140,66,0.7)) drop-shadow(0 0 6px rgba(255,140,66,0.5));
+        }
+        /* Tooltip label */
+        .eraser-label {
+          position: absolute;
+          bottom: -28px;
+          left: 50%;
+          transform: translateX(-50%);
+          font-size: 10px;
+          font-weight: bold;
+          color: #FF8C42;
+          white-space: nowrap;
+          font-family: 'Fredoka One', sans-serif;
+          opacity: 0;
+          transition: opacity 0.2s;
+          text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .eraser-btn.active .eraser-label {
+          opacity: 1;
+        }
+        /* Crayon color buttons */
+        @keyframes crayonSelect {
+          0%   { transform: scale(1) rotate(0deg); }
+          30%  { transform: scale(1.25) rotate(-10deg); }
+          60%  { transform: scale(1.18) rotate(5deg); }
+          100% { transform: scale(1.2) rotate(-4deg) translateX(-3px); }
+        }
+        .crayon-btn {
+          position: relative;
+          width: clamp(56px, 10.5vmin, 80px);
+          height: clamp(56px, 10.5vmin, 80px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          background: transparent;
+          border: none;
+          -webkit-tap-highlight-color: transparent;
+          user-select: none;
+          transition: transform 0.15s;
+          flex-shrink: 0;
+        }
+        .crayon-btn:active { transform: scale(0.9); }
+        .crayon-btn.active {
+          animation: crayonSelect 0.35s cubic-bezier(0.36,0.07,0.19,0.97) forwards;
+        }
+        .crayon-btn img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          pointer-events: none;
+          filter: drop-shadow(0 2px 5px rgba(0,0,0,0.2));
+          transition: filter 0.2s;
+        }
+        .crayon-btn.active img {
+          filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35)) drop-shadow(0 0 8px rgba(255,255,255,0.6));
+        }
+        /* Floating eraser cursor follower */
+        .eraser-follower {
+          position: fixed;
+          pointer-events: none;
+          z-index: 9999;
+          width: 64px;
+          height: 64px;
+          /* offset so the tip of eraser/crayon lines up with touch point */
+          transform: translate(-12px, -56px);
+          transition: src 0s;
+          filter: drop-shadow(0 3px 10px rgba(0,0,0,0.3));
+        }
       `}</style>
+
+      {/* ── Eraser Tool — fixed top-right ── */}
+      <div
+        className={`eraser-btn ${eraserMode ? 'active' : ''}`}
+        onClick={() => setEraserMode(prev => !prev)}
+        title={eraserMode ? 'Bumalik sa pagbatak' : 'Burahin'}
+      >
+        <img src="/eraser.png" alt="Eraser" />
+        <span className="eraser-label">{eraserMode ? 'Burahin' : ''}</span>
+      </div>
+
+      {/* ── Floating eraser image that follows cursor/touch ── */}
+      {followerVisible && followerPos && (
+        <img
+          src={eraserMode ? "/eraser.png" : `/${selectedCrayon.file}`}
+          alt=""
+          className="eraser-follower"
+          style={{
+            left: followerPos.x,
+            top: followerPos.y,
+          }}
+        />
+      )}
+
+      {/* ── Crayon color toolbar — stacked below eraser ── */}
+      <div style={{
+        position: 'fixed',
+        top: `calc(clamp(60px, 10vmin, 90px) + clamp(64px, 12vmin, 90px) + 8px)`,
+        right: 8,
+        zIndex: 35,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 16,
+      }}>
+        {CRAYONS.map((crayon) => (
+          <div
+            key={crayon.name}
+            className={`crayon-btn ${!eraserMode && selectedCrayon.name === crayon.name ? 'active' : ''}`}
+            onClick={() => {
+              setSelectedCrayon(crayon);
+              setEraserMode(false);
+              rainbowHueRef.current = 0;
+            }}
+            title={crayon.name}
+          >
+            <img src={`/${crayon.file}`} alt={crayon.name} />
+          </div>
+        ))}
+      </div>
 
       {/* ── Excellent overlay — only after sound phase is done ── */}
       {showExcellent && (
@@ -592,10 +835,9 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
           backgroundColor: 'rgba(220, 252, 231, 0.55)',
         }}>
           <div className="feedback-popup" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-            <p style={{ fontSize: 56, lineHeight: 1 }}>🎉</p>
+          
             <p className="text-3xl font-fredoka font-bold text-green-700">Mahusay!</p>
 
-            {/* Image */}
             {tracingAsset && (
               <div style={{
                 width: 'clamp(180px, 58vmin, 400px)', height: 'clamp(180px, 58vmin, 400px)', borderRadius: 'clamp(28px, 10vmin, 70px)',
@@ -618,20 +860,17 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
                 : 'Magaling!'}
             </p>
 
-            {/* Sound dots */}
             {soundDots()}
 
-            {/* Play Sound button — hidden once all plays done */}
             {postTracingPhase === 'sound' && soundPlayCount < SOUND_PLAYS_NEEDED && (
               <Button
                 onClick={handlePlaySoundBtn}
                 className="pop-in h-14 px-8 text-xl font-fredoka font-bold bg-secondary hover:bg-secondary/90 text-white rounded-2xl shadow-lg"
               >
-                🔊 Pakinggan ang tunog
+                 Pakinggan ang tunog
               </Button>
             )}
 
-            {/* Next Game button — appears after 3 plays */}
             {postTracingPhase === 'done' && (
               <Button
                 onClick={() => setShowExcellent(true)}
@@ -644,17 +883,17 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
         </div>
       )}
 
-<div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto', gap: 'clamp(4px, 1.5vh, 8px)' }}>
-  <div className="text-center flex-shrink-0">
-    <h2 className="font-fredoka font-bold text-foreground" style={{ fontSize: 'clamp(16px, 3.8vmin, 24px)', lineHeight: 1.15 }}>
-      Panuto: Bakatin ang malaki at maliit na titik {' '}
-      <span style={{ color: 'white', WebkitTextStroke: '4px black', paintOrder: 'stroke fill' }}>{getLetter(true)}</span>{' '}
-      <span style={{ color: 'white', WebkitTextStroke: '4px black', paintOrder: 'stroke fill' }}>{getLetter(false)}</span>
-    </h2>
-    <p className="text-sm text-muted-foreground">
-      Tunog: <span className="font-fredoka font-bold text-primary">{currentLetter?.sound}</span>
-    </p>
-  </div>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto', gap: 'clamp(4px, 1.5vh, 8px)' }}>
+        <div className="text-center flex-shrink-0">
+          <h2 className="font-fredoka font-bold text-foreground" style={{ fontSize: 'clamp(16px, 3.8vmin, 24px)', lineHeight: 1.15 }}>
+            Panuto: Bakatin ang malaki at maliit na titik {' '}
+            <span style={{ color: 'white', WebkitTextStroke: '4px black', paintOrder: 'stroke fill' }}>{getLetter(true)}</span>{' '}
+            <span style={{ color: 'white', WebkitTextStroke: '4px black', paintOrder: 'stroke fill' }}>{getLetter(false)}</span>
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Tunog: <span className="font-fredoka font-bold text-primary">{currentLetter?.sound}</span>
+          </p>
+        </div>
 
         <div style={{ position: 'relative', flex: 1, minHeight: '160px', overflow: 'visible' }}>
           {tracingAsset && (
@@ -704,13 +943,6 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
           >
             {hint}
           </p>
-          <Button
-            onClick={() => { initCanvases(); resetFill(); }}
-            variant="outline"
-            className="h-9 px-5 text-sm font-fredoka font-bold border-2 border-secondary text-secondary rounded-xl"
-          >
-            Burahin Lahat
-          </Button>
         </div>
       </div>
     </>

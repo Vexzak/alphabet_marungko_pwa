@@ -18,15 +18,13 @@ const WEEK_DAY_SCHEDULE = [
   { week: 2, day: 2, letters: ['m', 's', 'a', 'i', 'o', 'b', 'e', 'u', 't', 'k', 'l', 'y', 'n', 'g', 'h', 'p', 'r', 'd', 'c', 'j', 'f'] },
   { week: 2, day: 3, letters: ['m', 's', 'a', 'i', 'o', 'b', 'e', 'u', 't', 'k', 'l', 'y', 'n', 'g', 'h', 'p', 'r', 'd', 'c', 'j', 'f', 'v', 'z', 'q'] },
   { week: 2, day: 4, letters: ['m', 's', 'a', 'i', 'o', 'b', 'e', 'u', 't', 'k', 'l', 'y', 'n', 'g', 'h', 'p', 'r', 'd', 'c', 'j', 'f', 'v', 'z', 'q', 'x'] },
-  { week: 2, day: 5, letters: MARUNGKO_ORDER }, // All 25 letters
+  { week: 2, day: 5, letters: MARUNGKO_ORDER },
 ];
 
 function calculateWeekDay(completedLetters: string[]): { week: number; day: number; label: string } {
   if (completedLetters.length === 0) {
     return { week: 0, day: 0, label: 'Hindi pa nagsimula' };
   }
-
-  // Find the highest day completed
   for (let i = WEEK_DAY_SCHEDULE.length - 1; i >= 0; i--) {
     const schedule = WEEK_DAY_SCHEDULE[i];
     const allCompleted = schedule.letters.every(letter => completedLetters.includes(letter));
@@ -38,12 +36,12 @@ function calculateWeekDay(completedLetters: string[]): { week: number; day: numb
       };
     }
   }
-
   return { week: 0, day: 0, label: 'Nagsisimula pa...' };
 }
 
 // ── Lock/unlock helper ────────────────────────────────────────────────────────
-function isLetterUnlocked(letterKey: string, completedLetters: string[]): boolean {
+function isLetterUnlocked(letterKey: string, completedLetters: string[], forceUnlock?: boolean): boolean {
+  if (forceUnlock === true) return true;
   const idx = MARUNGKO_ORDER.indexOf(letterKey.toLowerCase());
   if (idx === -1) return false;
   if (idx === 0) return true;
@@ -176,15 +174,23 @@ export default function Home() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  // Locked-tile tooltip: which tile index is showing the "🔒 locked" hint
+  // Locked-tile tooltip
   const [lockedTooltipIdx, setLockedTooltipIdx] = useState<number | null>(null);
+
+  // Hidden feature: track clicks on SAME locked letter within 2 seconds
+  const [lockedLetterClicks, setLockedLetterClicks] = useState(0);
+  const [lockedLetterClickTime, setLockedLetterClickTime] = useState<number | null>(null);
+  const [lastClickedLockedLetter, setLastClickedLockedLetter] = useState<string | null>(null);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
+  const [allLettersUnlocked, setAllLettersUnlocked] = useState(false);
 
   const backgroundAudioRef = useRef<HTMLAudioElement | null>(null);
   const chooseAudioRef = useRef<HTMLAudioElement | null>(null);
   const introAudioRef = useRef<HTMLAudioElement | null>(null);
   const introPlayedRef = useRef(false);
 
-  // ── NEW: single shared "ting" audio ref so it never stacks ──
   const tingAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Persist learners whenever they change
@@ -192,7 +198,6 @@ export default function Home() {
     saveLearners(learners);
   }, [learners]);
 
-  // ── NEW: initialise the ting audio once ──
   useEffect(() => {
     tingAudioRef.current = new Audio('/ting.mp3');
     tingAudioRef.current.volume = 1;
@@ -201,16 +206,14 @@ export default function Home() {
     };
   }, []);
 
-  // ── NEW: play ting — always cut any in-progress playback first ──
   const playTing = () => {
     const audio = tingAudioRef.current;
     if (!audio) return;
     audio.pause();
     audio.currentTime = 0;
-    audio.play().catch(() => {/* autoplay policy — silently ignore */});
+    audio.play().catch(() => {});
   };
 
-  // ── NEW: stop ting (called on mouse-leave) ──
   const stopTing = () => {
     const audio = tingAudioRef.current;
     if (!audio) return;
@@ -221,7 +224,6 @@ export default function Home() {
   // ── Function to mark letter as complete and update learner ──
   const markLetterComplete = (letterKey: string) => {
     if (!activeLearner) return;
-
     const updatedLearners = learners.map(l => {
       if (l.id === activeLearner.id) {
         const newCompletedLetters = Array.from(new Set([...l.completedLetters, letterKey.toLowerCase()]));
@@ -237,11 +239,20 @@ export default function Home() {
       }
       return l;
     });
-
     setLearners(updatedLearners);
   };
 
-  // ── Stop a one-shot sfx cleanly ──
+  // ── Master unlock all letters via password ──
+  const unlockAllLetters = () => {
+    setAllLettersUnlocked(true);
+    const winAudio = new Audio('/win.mp3');
+    winAudio.volume = 0.8;
+    winAudio.play().catch(console.error);
+    setShowPasswordModal(false);
+    setPasswordInput('');
+    setPasswordError(false);
+  };
+
   const stopSfx = (ref: React.MutableRefObject<HTMLAudioElement | null>) => {
     if (ref.current) {
       ref.current.pause();
@@ -324,17 +335,18 @@ export default function Home() {
     setLocation('/');
     setShowLanding(true);
     setActiveLearner(null);
+    setAllLettersUnlocked(false);
   };
 
   const handleSelectLetter = (letter: (typeof allLetters)[number]) => {
-    if (!isLetterUnlocked(letter.letter, activeLearner?.completedLetters ?? [])) return;
+    if (!isLetterUnlocked(letter.letter, activeLearner?.completedLetters ?? [], allLettersUnlocked)) return;
     setCurrentLetter(letter);
     setCurrentPhase('anticipatory');
     setShowLetterPicker(false);
   };
 
   const handleMarungkoStart = (letter: (typeof allLetters)[number]) => {
-    if (!isLetterUnlocked(letter.letter, activeLearner?.completedLetters ?? [])) return;
+    if (!isLetterUnlocked(letter.letter, activeLearner?.completedLetters ?? [], allLettersUnlocked)) return;
     setCurrentLetter(letter);
     setCurrentPhase('instruction');
     setShowMarungkoStartPicker(false);
@@ -370,6 +382,142 @@ export default function Home() {
     }
   };
 
+  // ── Reusable Password Modal ───────────────────────────────────────────────
+  const PasswordModal = () => {
+    if (!showPasswordModal || !activeLearner) return null;
+    return (
+      <div
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 60, padding: '16px',
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setShowPasswordModal(false);
+            setPasswordInput('');
+            setPasswordError(false);
+          }
+        }}
+      >
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            borderRadius: '28px', padding: '32px 28px',
+            width: '100%', maxWidth: '380px',
+            display: 'flex', flexDirection: 'column', gap: '20px',
+            boxShadow: '0 25px 80px rgba(0,0,0,0.4)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{
+              fontFamily: 'var(--font-fredoka, sans-serif)',
+              fontWeight: 800, fontSize: '24px',
+              background: 'linear-gradient(135deg, #fff 0%, #f0f8ff 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              textShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            }}>
+              🔓 Unlock All Letters
+            </span>
+            <button
+              onClick={() => { setShowPasswordModal(false); setPasswordInput(''); setPasswordError(false); }}
+              style={{
+                background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%',
+                width: '36px', height: '36px', fontSize: '18px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                backdropFilter: 'blur(10px)'
+              }}
+            >×</button>
+          </div>
+
+          <p style={{
+            margin: 0, fontFamily: 'var(--font-quicksand, sans-serif)',
+            fontSize: '16px', color: 'rgba(255,255,255,0.95)',
+            lineHeight: 1.4, textAlign: 'center'
+          }}>
+            Enter password to unlock <strong>ALL</strong> letters for {activeLearner.name}
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <input
+              autoFocus
+              type="password"
+              value={passwordInput}
+              onChange={(e) => { setPasswordInput(e.target.value); if (passwordError) setPasswordError(false); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (passwordInput === 'essak123') { unlockAllLetters(); }
+                  else { setPasswordError(true); setTimeout(() => setPasswordError(false), 2000); }
+                }
+              }}
+              placeholder="Password..."
+              maxLength={20}
+              style={{
+                border: passwordError ? '3px solid #FF6B6B' : '3px solid rgba(255,255,255,0.4)',
+                borderRadius: '16px', padding: '16px 20px', fontSize: '18px',
+                fontFamily: 'var(--font-fredoka, sans-serif)',
+                background: 'rgba(255,255,255,0.95)',
+                outline: 'none', width: '100%', boxSizing: 'border-box',
+                backdropFilter: 'blur(20px)',
+                transition: 'border-color 0.2s ease'
+              }}
+            />
+            {passwordError && (
+              <div style={{
+                background: 'rgba(255,107,107,0.2)', border: '1px solid #FF6B6B',
+                borderRadius: '12px', padding: '12px 16px', color: '#FF6B6B',
+                fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: '14px',
+                fontWeight: 600, textAlign: 'center'
+              }}>
+                ❌ Wrong password!
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={() => {
+                if (passwordInput === 'essak123') { unlockAllLetters(); }
+                else { setPasswordError(true); setTimeout(() => setPasswordError(false), 2000); }
+              }}
+              disabled={passwordInput.length < 6}
+              style={{
+                flex: 1,
+                background: passwordInput === 'essak123'
+                  ? 'linear-gradient(135deg, #1DD1A1, #00B894)'
+                  : 'rgba(255,255,255,0.25)',
+                boxShadow: passwordInput === 'essak123' ? '0 6px 0 #13a077' : '0 4px 0 rgba(0,0,0,0.2)',
+                borderRadius: '16px', border: 'none', height: '52px',
+                fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 800,
+                fontSize: '18px', color: '#fff',
+                cursor: passwordInput.length >= 6 ? 'pointer' : 'not-allowed',
+                backdropFilter: 'blur(20px)',
+                transition: 'all 0.2s ease'
+              }}
+              {...(passwordInput.length >= 6 ? pressSmall(passwordInput === 'essak123' ? '#13a077' : 'rgba(0,0,0,0.2)') : {})}
+            >
+              {passwordInput === 'essak123' ? '🎉 Unlock All!' : 'Unlock'}
+            </button>
+            <button
+              onClick={() => { setShowPasswordModal(false); setPasswordInput(''); setPasswordError(false); }}
+              style={{
+                flex: 1, background: 'rgba(255,255,255,0.2)', boxShadow: '0 4px 0 rgba(0,0,0,0.2)',
+                borderRadius: '16px', border: 'none', height: '52px',
+                fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 700,
+                fontSize: '16px', color: '#fff', cursor: 'pointer',
+                backdropFilter: 'blur(20px)'
+              }}
+              {...pressSmall('rgba(0,0,0,0.2)')}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ── Landing screen ───────────────────────────────────────────────────────
   if (showLanding) {
     return (
@@ -395,68 +543,69 @@ export default function Home() {
             width: 'min(96vw, 760px)',
           }}
         >
-            <button
-              onClick={() => {
-                playBackgroundMusic();
-                playIntroSound();
-                setShowLearnersModal(true);
-                setShowAddForm(true);
-              }}
-              aria-label="Simulang Matuto"
-              style={{
-                width: 'clamp(170px, 39vw, 330px)',
-                border: 'none',
-                background: 'transparent',
-                padding: 0,
-                cursor: 'pointer',
-                transition: 'transform 0.1s',
-                fontSize: 0,
-                filter: 'drop-shadow(0 0 10px #FFE65A) drop-shadow(0 0 22px rgba(255, 213, 0, 0.8))',
-                animation: 'playButtonPulse 1.15s ease-in-out infinite',
-              }}
-              onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px) scale(0.98)'; }}
-              onMouseUp={(e) => { e.currentTarget.style.transform = ''; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = ''; }}
-              onTouchStart={(e) => { e.currentTarget.style.transform = 'translateY(4px) scale(0.98)'; }}
-              onTouchEnd={(e) => { e.currentTarget.style.transform = ''; }}
-            >
-              <img src="/play_button.png" alt="Simulang Matuto" style={{ display: 'block', width: '100%', height: 'auto' }} />
-            </button>
+          <button
+            onClick={() => {
+              playBackgroundMusic();
+              playIntroSound();
+              setShowLearnersModal(true);
+              setShowAddForm(true);
+            }}
+            aria-label="Simulang Matuto"
+            style={{
+              width: 'clamp(170px, 39vw, 330px)',
+              border: 'none',
+              background: 'transparent',
+              padding: 0,
+              cursor: 'pointer',
+              transition: 'transform 0.1s',
+              fontSize: 0,
+              filter: 'drop-shadow(0 0 10px #FFE65A) drop-shadow(0 0 22px rgba(255, 213, 0, 0.8))',
+              animation: 'playButtonPulse 1.15s ease-in-out infinite',
+            }}
+            onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px) scale(0.98)'; }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = ''; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = ''; }}
+            onTouchStart={(e) => { e.currentTarget.style.transform = 'translateY(4px) scale(0.98)'; }}
+            onTouchEnd={(e) => { e.currentTarget.style.transform = ''; }}
+          >
+            <img src="/play_button.png" alt="Simulang Matuto" style={{ display: 'block', width: '100%', height: 'auto' }} />
+          </button>
 
-            <button
-              onClick={() => { playBackgroundMusic(); playIntroSound(); setShowLearnersModal(true); setShowAddForm(false); }}
-              aria-label="Mga Mag-aaral"
-              style={{
-                width: 'clamp(170px, 39vw, 330px)',
-                border: 'none',
-                background: 'transparent',
-                padding: 0,
-                cursor: 'pointer',
-                transition: 'transform 0.1s',
-                fontSize: 0,
-                filter: 'drop-shadow(0 18px 18px rgba(0, 0, 0, 0.38))',
-              }}
-              onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px) scale(0.98)'; }}
-              onMouseUp={(e) => { e.currentTarget.style.transform = ''; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = ''; }}
-              onTouchStart={(e) => { e.currentTarget.style.transform = 'translateY(4px) scale(0.98)'; }}
-              onTouchEnd={(e) => { e.currentTarget.style.transform = ''; }}
-            >
-              <img src="/acc_button.png" alt="Mga Mag-aaral" style={{ display: 'block', width: '100%', height: 'auto' }} />
-            </button>
-          </div>
-          <style>{`
-            @keyframes playButtonPulse {
-              0%, 100% {
-                transform: translateY(0) scale(1);
-                filter: drop-shadow(0 0 10px #FFE65A) drop-shadow(0 0 22px rgba(255, 213, 0, 0.8));
-              }
-              50% {
-                transform: translateY(-8px) scale(1.08);
-                filter: drop-shadow(0 0 16px #FFF27A) drop-shadow(0 0 34px rgba(255, 213, 0, 1));
-              }
+          <button
+            onClick={() => { playBackgroundMusic(); playIntroSound(); setShowLearnersModal(true); setShowAddForm(false); }}
+            aria-label="Mga Mag-aaral"
+            style={{
+              width: 'clamp(170px, 39vw, 330px)',
+              border: 'none',
+              background: 'transparent',
+              padding: 0,
+              cursor: 'pointer',
+              transition: 'transform 0.1s',
+              fontSize: 0,
+              filter: 'drop-shadow(0 18px 18px rgba(0, 0, 0, 0.38))',
+            }}
+            onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(4px) scale(0.98)'; }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = ''; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = ''; }}
+            onTouchStart={(e) => { e.currentTarget.style.transform = 'translateY(4px) scale(0.98)'; }}
+            onTouchEnd={(e) => { e.currentTarget.style.transform = ''; }}
+          >
+            <img src="/acc_button.png" alt="Mga Mag-aaral" style={{ display: 'block', width: '100%', height: 'auto' }} />
+          </button>
+        </div>
+
+        <style>{`
+          @keyframes playButtonPulse {
+            0%, 100% {
+              transform: translateY(0) scale(1);
+              filter: drop-shadow(0 0 10px #FFE65A) drop-shadow(0 0 22px rgba(255, 213, 0, 0.8));
             }
-          `}</style>
+            50% {
+              transform: translateY(-8px) scale(1.08);
+              filter: drop-shadow(0 0 16px #FFF27A) drop-shadow(0 0 34px rgba(255, 213, 0, 1));
+            }
+          }
+        `}</style>
 
         {/* ── Learners Modal ── */}
         {showLearnersModal && (
@@ -521,7 +670,7 @@ export default function Home() {
                       }}
                       {...(newName.trim() ? pressSmall('#c94b4b') : {})}
                     >
-                      Maglaro! 🎉
+                      Maglaro!
                     </button>
                     {learners.length > 0 && (
                       <button
@@ -615,7 +764,6 @@ export default function Home() {
                                   <p style={{ margin: 0, fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 700, fontSize: '18px', color: '#333' }}>
                                     {learner.name}
                                   </p>
-                                  {/* Progress bar */}
                                   <div style={{ marginTop: '4px', marginBottom: '2px', width: '100%', height: '6px', background: '#e8e8e8', borderRadius: '99px', overflow: 'hidden' }}>
                                     <div style={{
                                       height: '100%',
@@ -634,8 +782,9 @@ export default function Home() {
                               <button
                                 onClick={() => setConfirmDeleteId(learner.id)}
                                 style={{
-                                  background: '#ffe4e4', border: 'none', borderRadius: '12px',
+                                  background: '#ffe4e4', borderRadius: '12px',
                                   width: '38px', height: '38px', cursor: 'pointer', fontSize: '16px',
+                                  border: 'none',
                                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                                   flexShrink: 0,
                                 }}
@@ -666,6 +815,9 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {/* Password modal also available on landing just in case */}
+        <PasswordModal />
       </div>
     );
   }
@@ -756,7 +908,6 @@ export default function Home() {
             50% { box-shadow: 0 0 0 7px rgba(255,159,67,0.15); }
           }
 
-          /* ── Hover glow for unlocked tiles ── */
           .letter-tile-unlocked {
             transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, filter 0.15s ease !important;
           }
@@ -775,7 +926,6 @@ export default function Home() {
             justifyContent: 'flex-start', padding: 'clamp(8px, 2vh, 16px)', gap: 'clamp(8px, 2vh, 14px)',
           }}
         >
-
           {/* Legend */}
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -802,7 +952,8 @@ export default function Home() {
             {marungkoSorted.map((letter, idx) => {
               const color = tileColors[colorGrid[idx]];
               const isCompleted = completedLetters.includes(letter.letter.toLowerCase());
-              const isUnlocked = isLetterUnlocked(letter.letter, completedLetters);
+              // ── FIX 4: pass allLettersUnlocked flag so tiles reflect unlock state ──
+              const isUnlocked = isLetterUnlocked(letter.letter, completedLetters, allLettersUnlocked);
               const isLocked = !isUnlocked;
               const isNext = isUnlocked && !isCompleted;
 
@@ -831,24 +982,49 @@ export default function Home() {
               return (
                 <div key={letter.letter} style={{ position: 'relative' }}>
                   <button
-                    // ── Add the hover CSS class only for unlocked tiles ──
                     className={!isLocked ? 'letter-tile-unlocked' : undefined}
                     onClick={() => {
                       if (isLocked) {
+                        const now = Date.now();
+
+                        // Show tooltip
                         setLockedTooltipIdx(idx);
                         setTimeout(() => setLockedTooltipIdx(null), 1500);
+
+                        if (
+                          lastClickedLockedLetter === letter.letter &&
+                          lockedLetterClickTime !== null &&
+                          now - lockedLetterClickTime <= 2000
+                        ) {
+                          // ── FIX 2: reset the window on every click so rapid taps always count ──
+                          const newCount = lockedLetterClicks + 1;
+                          setLockedLetterClickTime(now);
+                          setLockedLetterClicks(newCount);
+
+                          // ── FIX 3: threshold is 4 here because first click set count to 1,
+                          //    so 1 + 4 more increments = 5 total clicks ──
+                          if (newCount >= 4) {
+                            setShowPasswordModal(true);
+                            setLockedLetterClicks(0);
+                            setLastClickedLockedLetter(null);
+                            setLockedLetterClickTime(null);
+                          }
+                        } else {
+                          // First click or different letter — start a fresh sequence
+                          setLockedLetterClicks(1);
+                          setLastClickedLockedLetter(letter.letter);
+                          setLockedLetterClickTime(now);
+                        }
+
                         return;
                       }
                       handleMarungkoStart(letter);
                     }}
-                    // ── Hover: play ting + visual lift ──
                     onMouseEnter={(e) => {
                       if (isLocked) return;
                       playTing();
-                      // The CSS class handles the visual lift; box-shadow update for the pressed shadow
                       e.currentTarget.style.boxShadow = `0 8px 0 ${tileShadow}, 0 0 18px 4px ${tileBg}99`;
                     }}
-                    // ── Leave: stop ting + reset styles ──
                     onMouseLeave={(e) => {
                       if (isLocked) return;
                       stopTing();
@@ -900,23 +1076,14 @@ export default function Home() {
                       {idx + 1}
                     </span>
 
-                    {/* Completed checkmark badge */}
                     {isCompleted && (
-                      <span style={{
-                        position: 'absolute', top: '4px', right: '5px',
-                        fontSize: '11px', lineHeight: 1,
-                      }}>✓</span>
+                      <span style={{ position: 'absolute', top: '4px', right: '5px', fontSize: '11px', lineHeight: 1 }}>✓</span>
                     )}
 
-                    {/* Lock icon overlay */}
                     {isLocked && (
-                      <span style={{
-                        position: 'absolute', top: '4px', right: '5px',
-                        fontSize: '11px', lineHeight: 1,
-                      }}>🔒</span>
+                      <span style={{ position: 'absolute', top: '4px', right: '5px', fontSize: '11px', lineHeight: 1 }}>🔒</span>
                     )}
 
-                    {/* Letter display */}
                     {isLocked ? (
                       <span style={{ fontSize: '26px', lineHeight: 1 }}>🔒</span>
                     ) : (
@@ -930,7 +1097,6 @@ export default function Home() {
                       </>
                     )}
 
-                    {/* "Next!" pulse ring for the very next letter */}
                     {isNext && (
                       <span style={{
                         position: 'absolute', inset: 0, borderRadius: '16px',
@@ -941,7 +1107,6 @@ export default function Home() {
                     )}
                   </button>
 
-                  {/* Locked tooltip */}
                   {lockedTooltipIdx === idx && (
                     <div style={{
                       position: 'absolute', bottom: 'calc(clamp(58px, 15vmin, 110px) - 22px)', left: '50%',
@@ -960,6 +1125,9 @@ export default function Home() {
             })}
           </div>
         </div>
+
+        {/* ── FIX 1: Password modal rendered HERE so it shows on this screen ── */}
+        <PasswordModal />
       </div>
     );
   }
@@ -1041,7 +1209,7 @@ export default function Home() {
                 <p className="text-sm font-fredoka font-bold mb-2 text-primary">Pumili ng titik</p>
                 <div className="grid grid-cols-5 gap-2">
                   {allLetters.map((letter) => {
-                    const unlocked = isLetterUnlocked(letter.letter, activeLearner?.completedLetters ?? []);
+                    const unlocked = isLetterUnlocked(letter.letter, activeLearner?.completedLetters ?? [], allLettersUnlocked);
                     const completed = activeLearner?.completedLetters?.includes(letter.letter.toLowerCase());
                     return (
                       <button

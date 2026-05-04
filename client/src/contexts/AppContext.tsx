@@ -59,6 +59,53 @@ const LETTER_ASSETS: Record<string, LetterAsset[]> = {
     { word: 'aklat',   image: '/letters/A-aklat.png',   sound: '/sounds/A_aklat.mp3'   },
     { word: 'araw', image: '/letters/A-araw.png', sound: '/sounds/A_araw.mp3' },
   ],
+  i: [
+    { word: 'isda',  image: '/letters/I-isda.png',  sound: '/sounds/I_isda.mp3'  },
+    { word: 'ilaw',  image: '/letters/I-ilaw.png',  sound: '/sounds/I_ilaw.mp3'  },
+    { word: 'isla',  image: '/letters/I-isla.png',  sound: '/sounds/I_isla.mp3'  },
+    { word: 'ibon',  image: '/letters/I-ibon.png',  sound: '/sounds/I_ibon.mp3'  },
+    { word: 'itlog', image: '/letters/I-itlog.png', sound: '/sounds/I_itlog.mp3' },
+  ],
+
+  o: [
+    { word: 'oso',     image: '/letters/O-oso.png',     sound: '/sounds/O_oso.mp3'     },
+    { word: 'oktopus', image: '/letters/O-oktopus.png', sound: '/sounds/O_oktopus.mp3' },
+    { word: 'orasan',  image: '/letters/O-orasan.png',  sound: '/sounds/O_orasan.mp3'  },
+    { word: 'orange',  image: '/letters/O-orange.png',  sound: '/sounds/O_orange.mp3'  },
+    { word: 'okra',    image: '/letters/O-okra.png',    sound: '/sounds/O_okra.mp3'    },
+  ],
+
+  b: [
+    { word: 'bola',  image: '/letters/B-bola.png',  sound: '/sounds/B_bola.mp3'  },
+    { word: 'bahay', image: '/letters/B-bahay.png', sound: '/sounds/B_bahay.mp3' },
+    { word: 'bato',  image: '/letters/B-bato.png',  sound: '/sounds/B_bato.mp3'  },
+    { word: 'bus',   image: '/letters/B-bus.png',   sound: '/sounds/B_bus.mp3'   },
+    { word: 'baso',  image: '/letters/B-baso.png',  sound: '/sounds/B_baso.mp3'  },
+  ],
+
+  e: [
+    { word: 'elepante',  image: '/letters/E-elepante.png',  sound: '/sounds/E_elepante.mp3'  },
+    { word: 'ensaymada', image: '/letters/E-ensaymada.png', sound: '/sounds/E_ensaymada.mp3' },
+    { word: 'empanada',  image: '/letters/E-empanada.png',  sound: '/sounds/E_empanada.mp3'  },
+    { word: 'eroplano',  image: '/letters/E-eroplano.png',  sound: '/sounds/E_eroplano.mp3'  },
+    { word: 'espageti',  image: '/letters/E-espageti.png',  sound: '/sounds/E_espageti.mp3'  },
+  ],
+
+  u: [
+    { word: 'unggoy', image: '/letters/U-unggoy.png', sound: '/sounds/U_unggoy.mp3' },
+    { word: 'unan',   image: '/letters/U-unan.png',   sound: '/sounds/U_unan.mp3'   },
+    { word: 'upuan',  image: '/letters/U-upuan.png',  sound: '/sounds/U_upuan.mp3'  },
+    { word: 'ube',    image: '/letters/U-ube.png',    sound: '/sounds/U_ube.mp3'    },
+    { word: 'uwak',   image: '/letters/U-uwak.png',   sound: '/sounds/U_uwak.mp3'   },
+  ],
+
+  t: [
+    { word: 'telepono', image: '/letters/T-telepono.png', sound: '/sounds/T_telepono.mp3' },
+    { word: 'talong',   image: '/letters/T-talong.png',   sound: '/sounds/T_talong.mp3'   },
+    { word: 'tupa',     image: '/letters/T-tupa.png',     sound: '/sounds/T_tupa.mp3'     },
+    { word: 'tigre',    image: '/letters/T-tigre.png',    sound: '/sounds/T_tigre.mp3'    },
+    { word: 'tinapay',  image: '/letters/T-tinapay.png',  sound: '/sounds/T_tinapay.mp3'  },
+  ],
 };
 
 function shuffle<T>(arr: T[]): T[] {

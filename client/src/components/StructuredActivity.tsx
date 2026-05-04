@@ -88,18 +88,100 @@ function CircleLetterCard({
     ctx.stroke();
   }, []);
 
+  // ✨ STAR SPARKLE EFFECT ✨
+  const spawnStars = useCallback((
+    canvasEl: HTMLCanvasElement,
+    x: number,
+    y: number,
+    count: number,
+    size: number,
+    speed: number,
+    lifeMs: number
+  ) => {
+    const rect = canvasEl.getBoundingClientRect();
+    const hues = [50, 55, 200, 280, 320];
+
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const vel = speed * 0.5 + Math.random() * speed;
+      const vx = Math.cos(angle) * vel;
+      const vy = Math.sin(angle) * vel;
+      const s = size * (0.5 + Math.random() * 0.8);
+      const duration = lifeMs * (0.6 + Math.random() * 0.7);
+      const hue = hues[Math.floor(Math.random() * hues.length)];
+
+      const star = document.createElement('canvas');
+      star.width = s * 4;
+      star.height = s * 4;
+      Object.assign(star.style, {
+        position: 'fixed',
+        left: `${rect.left + x - s * 2}px`,
+        top: `${rect.top + y - s * 2}px`,
+        pointerEvents: 'none',
+        zIndex: '9999',
+      });
+
+      const sc = star.getContext('2d')!;
+      sc.save();
+      sc.translate(s * 2, s * 2);
+      sc.beginPath();
+      for (let p = 0; p < 5; p++) {
+        const outerAngle = (p * 4 * Math.PI) / 5 - Math.PI / 2;
+        const innerAngle = outerAngle + (2 * Math.PI) / 10;
+        const ox = Math.cos(outerAngle) * s;
+        const oy = Math.sin(outerAngle) * s;
+        const ix = Math.cos(innerAngle) * (s * 0.42);
+        const iy = Math.sin(innerAngle) * (s * 0.42);
+        p === 0 ? sc.moveTo(ox, oy) : sc.lineTo(ox, oy);
+        sc.lineTo(ix, iy);
+      }
+      sc.closePath();
+      sc.fillStyle = `hsl(${hue}, 100%, 65%)`;
+      sc.fill();
+      sc.restore();
+
+      document.body.appendChild(star);
+
+      const startTime = performance.now();
+      const initLeft = rect.left + x - s * 2;
+      const initTop = rect.top + y - s * 2;
+      let rot = Math.random() * 360;
+      const rotSpeed = (Math.random() - 0.5) * 720;
+
+      function tick(now: number) {
+        const elapsed = now - startTime;
+        const t = Math.min(elapsed / duration, 1);
+        const ease = 1 - t * t;
+        star.style.left = `${initLeft + vx * elapsed * 0.001 * 60}px`;
+        star.style.top = `${initTop + vy * elapsed * 0.001 * 60}px`;
+        rot += rotSpeed / 60;
+        star.style.transform = `rotate(${rot}deg) scale(${1 - t * 0.4})`;
+        star.style.opacity = String(ease);
+        if (t < 1) requestAnimationFrame(tick);
+        else star.remove();
+      }
+      requestAnimationFrame(tick);
+    }
+  }, []);
+
   const handleStart = (e: React.MouseEvent | React.TouchEvent) => {
     if (disabled || circled) return;
     e.preventDefault();
     drawing.current = true;
-    points.current = [getPos(e, canvasRef.current!)];
+    const pos = getPos(e, canvasRef.current!);
+    points.current = [pos];
+    spawnStars(canvasRef.current!, pos.x, pos.y, 12, 10, 90, 700);
   };
 
   const handleMove = (e: React.MouseEvent | React.TouchEvent) => {
     if (!drawing.current || disabled || circled) return;
     e.preventDefault();
-    points.current.push(getPos(e, canvasRef.current!));
+    const pos = getPos(e, canvasRef.current!);
+    points.current.push(pos);
     drawPath(points.current, '#6366f1');
+    if (Math.random() < 0.35) {
+      spawnStars(canvasRef.current!, pos.x, pos.y, 2, 6, 45, 450);
+    }
   };
 
   const handleEnd = (e: React.MouseEvent | React.TouchEvent) => {
@@ -222,12 +304,13 @@ function LetterSidebar({ uppercase, lowercase }: { uppercase: string; lowercase:
         userSelect: 'none',
         lineHeight: 1,
         padding: '0 8px',
-        zIndex: 40,               // ← sits on top of the image container
-        pointerEvents: 'none',    // ← won't block clicks
+        zIndex: 40,
+        pointerEvents: 'none',
       }}
     >
       <span style={{
         fontSize: 'clamp(54px, 13vmin, 160px)',
+        fontFamily: '"Chewy", cursive',
         fontWeight: 900,
         color: '#ffffff',
         letterSpacing: 0,
@@ -314,7 +397,6 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
   }, []);
 
   const getAvailableLetters = useCallback(() => {
-    const completedCount = learnerCompletedLetters.length;
     let availableLetters = LETTER_PROGRESSION[0];
     for (let i = 0; i < LETTER_PROGRESSION.length; i++) {
       const progressionSet = LETTER_PROGRESSION[i];
@@ -594,7 +676,6 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
           <div className="feedback-popup" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
             {isCorrect ? (
               <>
-                <p style={{ fontSize: 64, lineHeight: 1 }}>🎉</p>
                 <p className="text-3xl font-fredoka font-bold text-green-700">Mahusay!</p>
                 <div style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
                   <Button onClick={handlePlayAgain} className="play-again-btn h-14 px-8 text-xl font-fredoka font-bold bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-2xl shadow-lg">
@@ -607,9 +688,8 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
               </>
             ) : (
               <>
-                <p style={{ fontSize: 64, lineHeight: 1 }}>🤔</p>
-                <p className="text-3xl font-fredoka font-bold text-red-700">Try Again!</p>
-                <p className="text-lg text-red-600">The correct letter is {currentLetter?.uppercase}{currentLetter?.lowercase}</p>
+                <p className="text-3xl font-fredoka font-bold text-red-700">Mali!</p>
+                <p className="text-lg text-red-600">Ang tamang sagot ay {currentLetter?.uppercase}{currentLetter?.lowercase}</p>
                 <div style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
                   <Button onClick={handleReset} className="h-14 px-10 text-xl font-fredoka font-bold bg-secondary hover:bg-secondary/90 text-white rounded-2xl shadow-lg">
                     Ulitin
@@ -623,7 +703,7 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
 
       {mode === 'independent' ? (
         // ── Look & Circle mode ─────────────────────────────────────────────────
-        <div style={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+        <div style={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div className="text-center flex-shrink-0" style={{ paddingTop: 8, paddingBottom: 8 }}>
             <h2 className="font-fredoka font-bold text-foreground" style={{ fontSize: 'clamp(16px, 4vmin, 30px)', lineHeight: 1.15 }}>Panuto: Tingnan ang larawan at bilugan kung anong titik ang may unang tunog sa larawang ito.</h2>
           </div>
@@ -667,7 +747,7 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
         </div>
       ) : (
         // ── Guided mode: Listen & Repeat ──────────────────────────────────────
-        <div style={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(6px, 2vh, 12px)', overflow: 'auto' }}>
+        <div style={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(6px, 2vh, 12px)', overflow: 'hidden' }}>
           <div className="text-center flex-shrink-0">
             <h2 className="font-fredoka font-bold text-foreground mb-2" style={{ fontSize: 'clamp(16px, 4vmin, 30px)', lineHeight: 1.15 }}>Pakinggan nang mabuti ang tunog ng letra at bilugan kung anong letra ito. </h2>
             {!choicesUnlocked && progressDots()}
@@ -724,7 +804,7 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
                 className={`px-8 font-fredoka font-bold bg-secondary hover:bg-secondary/90 text-white rounded-2xl shadow-lg ${isPressed ? 'btn-press' : ''} ${isPanuto4Playing ? 'opacity-50 cursor-not-allowed' : ''}`}
                 style={{ height: 'clamp(44px, 9vmin, 64px)', fontSize: 'clamp(15px, 3.5vmin, 20px)' }}
               >
-                🔊 Pakinggan nag tunog
+                 Pakinggan nag tunog
               </Button>
             </div>
           )}
