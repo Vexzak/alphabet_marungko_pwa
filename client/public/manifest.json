@@ -1,6 +1,5 @@
 {
   "name": "AlpabeTitik",
-  "short_name": "AlpabeTitik",
   "description": "An interactive educational PWA for Grade 1 Filipino learners teaching alphabet recognition, letter sounds, letter formation, and beginning sound awareness using the Marungko Approach.",
   "start_url": "/",
   "scope": "/",
