@@ -1,14 +1,14 @@
 {
-  "name": "Multisensory Phonics Digital Simulation App (Marungko Approach)",
-  "short_name": "Marungko Phonics",
+  "name": "AlpabeTitik",
+  "short_name": "AlpabeTitik",
   "description": "An interactive educational PWA for Grade 1 Filipino learners teaching alphabet recognition, letter sounds, letter formation, and beginning sound awareness using the Marungko Approach.",
   "start_url": "/",
   "scope": "/",
   "display": "fullscreen",
   "display_override": ["fullscreen", "standalone", "minimal-ui"],
   "orientation": "landscape-primary",
-  "background_color": "#87CEEB",
-  "theme_color": "#87CEEB",
+  "background_color": "#4DC3E8",
+  "theme_color": "#4DC3E8",
   "icons": [
     {
       "src": "/small_icon.png",
