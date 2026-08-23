@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { useApp } from '@/contexts/AppContext';
 import type { LetterAsset } from '@/contexts/AppContext';
+import { LETTER_DAY_GROUPS } from '@/lib/letterDays';
 import RewardFeedback from '@/components/RewardFeedback';
 import { useState, useRef, useEffect, useCallback } from 'react';
 
@@ -148,7 +149,7 @@ function CircleLetterCard({
       let rot = Math.random() * 360;
       const rotSpeed = (Math.random() - 0.5) * 720;
 
-      function tick(now: number) {
+      const tick = (now: number) => {
         const elapsed = now - startTime;
         const t = Math.min(elapsed / duration, 1);
         const ease = 1 - t * t;
@@ -159,7 +160,7 @@ function CircleLetterCard({
         star.style.opacity = String(ease);
         if (t < 1) requestAnimationFrame(tick);
         else star.remove();
-      }
+      };
       requestAnimationFrame(tick);
     }
   }, []);
@@ -274,17 +275,9 @@ function CircleLetterCard({
 }
 
 // Progressive letter sequence based on Marungko method
-const LETTER_PROGRESSION = [
-  ['m', 's', 'a'],
-  ['m', 's', 'a', 'i', 'o', 'b'],
-  ['m', 's', 'a', 'i', 'o', 'b', 'e', 'u', 't'],
-  ['m', 's', 'a', 'i', 'o', 'b', 'e', 'u', 't', 'k', 'l', 'y'],
-  ['m', 's', 'a', 'i', 'o', 'b', 'e', 'u', 't', 'k', 'l', 'y', 'n', 'g', 'h'],
-  ['m', 's', 'a', 'i', 'o', 'b', 'e', 'u', 't', 'k', 'l', 'y', 'n', 'g', 'h', 'p', 'r', 'd'],
-  ['m', 's', 'a', 'i', 'o', 'b', 'e', 'u', 't', 'k', 'l', 'y', 'n', 'g', 'h', 'p', 'r', 'd', 'c', 'j', 'f'],
-  ['m', 's', 'a', 'i', 'o', 'b', 'e', 'u', 't', 'k', 'l', 'y', 'n', 'g', 'h', 'p', 'r', 'd', 'c', 'j', 'f', 'v', 'z', 'q'],
-  ['m', 's', 'a', 'i', 'o', 'b', 'e', 'u', 't', 'k', 'l', 'y', 'n', 'g', 'h', 'p', 'r', 'd', 'c', 'j', 'f', 'v', 'z', 'q', 'x'],
-];
+const LETTER_PROGRESSION = LETTER_DAY_GROUPS.map((_, index) =>
+  LETTER_DAY_GROUPS.slice(0, index + 1).flat()
+);
 
 const TOTAL_ROUNDS = 3;
 

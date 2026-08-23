@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { MARUNGKO_ORDER } from '@/lib/letterDays';
 
 export interface LetterProgress {
   letter: string;
@@ -18,20 +19,28 @@ export interface LetterAsset {
   sound: string;
 }
 
+export type AppPhase =
+  | 'anticipatory'
+  | 'instruction'
+  | 'guided'
+  | 'independent'
+  | 'drag-assessment'
+  | 'assessment'
+  | 'review-relearn';
+
 export interface AppContextType {
   currentLetter: LetterProgress | null;
   setCurrentLetter: (letter: LetterProgress | null) => void;
   letterProgress: Record<string, LetterProgress>;
   updateLetterProgress: (letter: string, progress: Partial<LetterProgress>) => void;
-  currentPhase: 'anticipatory' | 'instruction' | 'guided' | 'independent' | 'assessment';
-  setCurrentPhase: (phase: 'anticipatory' | 'instruction' | 'guided' | 'independent' | 'assessment') => void;
+  currentPhase: AppPhase;
+  setCurrentPhase: (phase: AppPhase) => void;
   allLetters: LetterProgress[];
   overallProgress: number;
   consumeNextAsset: () => LetterAsset | null;
   peekCurrentAsset: () => LetterAsset | null;
   advanceQueue: (steps?: number) => void;
   resetAssetQueue: () => void;
-  // 🔧 FIX: expose a reset for new user sessions
   resetForNewUser: () => void;
 }
 
@@ -46,18 +55,18 @@ const LETTER_ASSETS: Record<string, LetterAsset[]> = {
     { word: 'malungay', image: '/letters/M-malungay.png', sound: '/sounds/M_malungay.mp3' },
   ],
   s: [
-    { word: 'susi',    image: '/letters/S-susi.png',    sound: '/sounds/S_susi.mp3'    },
-    { word: 'saging',    image: '/letters/S-saging.png',    sound: '/sounds/S_saging.mp3'    },
-    { word: 'sarangola',    image: '/letters/S-sarangola.png',    sound: '/sounds/S_sarangola.mp3'    },
-    { word: 'sapatos',   image: '/letters/S-sapatos.png',   sound: '/sounds/S_sapatos.mp3'   },
-    { word: 'sandok', image: '/letters/S-sandok.png', sound: '/sounds/S_sandok.mp3' },
+    { word: 'susi',       image: '/letters/S-susi.png',       sound: '/sounds/S_susi.mp3'       },
+    { word: 'saging',     image: '/letters/S-saging.png',     sound: '/sounds/S_saging.mp3'     },
+    { word: 'sarangola',  image: '/letters/S-sarangola.png',  sound: '/sounds/S_sarangola.mp3'  },
+    { word: 'sapatos',    image: '/letters/S-sapatos.png',    sound: '/sounds/S_sapatos.mp3'    },
+    { word: 'sandok',     image: '/letters/S-sandok.png',     sound: '/sounds/S_sandok.mp3'     },
   ],
   a: [
-    { word: 'agila',    image: '/letters/A-agila.png',    sound: '/sounds/A_agila.mp3'    },
-    { word: 'apoy',    image: '/letters/A-apoy.png',    sound: '/sounds/A_apoy.mp3'    },
+    { word: 'agila',  image: '/letters/A-agila.png',  sound: '/sounds/A_agila.mp3'  },
+    { word: 'apoy',   image: '/letters/A-apoy.png',   sound: '/sounds/A_apoy.mp3'   },
     { word: 'aso',    image: '/letters/A-aso.png',    sound: '/sounds/A_aso.mp3'    },
-    { word: 'aklat',   image: '/letters/A-aklat.png',   sound: '/sounds/A_aklat.mp3'   },
-    { word: 'araw', image: '/letters/A-araw.png', sound: '/sounds/A_araw.mp3' },
+    { word: 'aklat',  image: '/letters/A-aklat.png',  sound: '/sounds/A_aklat.mp3'  },
+    { word: 'araw',   image: '/letters/A-araw.png',   sound: '/sounds/A_araw.mp3'   },
   ],
   i: [
     { word: 'isda',  image: '/letters/I-isda.png',  sound: '/sounds/I_isda.mp3'  },
@@ -66,7 +75,6 @@ const LETTER_ASSETS: Record<string, LetterAsset[]> = {
     { word: 'ibon',  image: '/letters/I-ibon.png',  sound: '/sounds/I_ibon.mp3'  },
     { word: 'itlog', image: '/letters/I-itlog.png', sound: '/sounds/I_itlog.mp3' },
   ],
-
   o: [
     { word: 'oso',     image: '/letters/O-oso.png',     sound: '/sounds/O_oso.mp3'     },
     { word: 'oktopus', image: '/letters/O-oktopus.png', sound: '/sounds/O_oktopus.mp3' },
@@ -74,7 +82,6 @@ const LETTER_ASSETS: Record<string, LetterAsset[]> = {
     { word: 'orange',  image: '/letters/O-orange.png',  sound: '/sounds/O_orange.mp3'  },
     { word: 'okra',    image: '/letters/O-okra.png',    sound: '/sounds/O_okra.mp3'    },
   ],
-
   b: [
     { word: 'bola',  image: '/letters/B-bola.png',  sound: '/sounds/B_bola.mp3'  },
     { word: 'bahay', image: '/letters/B-bahay.png', sound: '/sounds/B_bahay.mp3' },
@@ -82,7 +89,6 @@ const LETTER_ASSETS: Record<string, LetterAsset[]> = {
     { word: 'bus',   image: '/letters/B-bus.png',   sound: '/sounds/B_bus.mp3'   },
     { word: 'baso',  image: '/letters/B-baso.png',  sound: '/sounds/B_baso.mp3'  },
   ],
-
   e: [
     { word: 'elepante',  image: '/letters/E-elepante.png',  sound: '/sounds/E_elepante.mp3'  },
     { word: 'ensaymada', image: '/letters/E-ensaymada.png', sound: '/sounds/E_ensaymada.mp3' },
@@ -90,7 +96,6 @@ const LETTER_ASSETS: Record<string, LetterAsset[]> = {
     { word: 'eroplano',  image: '/letters/E-eroplano.png',  sound: '/sounds/E_eroplano.mp3'  },
     { word: 'espageti',  image: '/letters/E-espageti.png',  sound: '/sounds/E_espageti.mp3'  },
   ],
-
   u: [
     { word: 'unggoy', image: '/letters/U-unggoy.png', sound: '/sounds/U_unggoy.mp3' },
     { word: 'unan',   image: '/letters/U-unan.png',   sound: '/sounds/U_unan.mp3'   },
@@ -98,7 +103,6 @@ const LETTER_ASSETS: Record<string, LetterAsset[]> = {
     { word: 'ube',    image: '/letters/U-ube.png',    sound: '/sounds/U_ube.mp3'    },
     { word: 'uwak',   image: '/letters/U-uwak.png',   sound: '/sounds/U_uwak.mp3'   },
   ],
-
   t: [
     { word: 'telepono', image: '/letters/T-telepono.png', sound: '/sounds/T_telepono.mp3' },
     { word: 'talong',   image: '/letters/T-talong.png',   sound: '/sounds/T_talong.mp3'   },
@@ -106,6 +110,19 @@ const LETTER_ASSETS: Record<string, LetterAsset[]> = {
     { word: 'tigre',    image: '/letters/T-tigre.png',    sound: '/sounds/T_tigre.mp3'    },
     { word: 'tinapay',  image: '/letters/T-tinapay.png',  sound: '/sounds/T_tinapay.mp3'  },
   ],
+  w: [
+    { word: 'walis', image: '/letters/W-walis.png', sound: '/sounds/W_walis.mp3' },
+    { word: 'watawat', image: '/letters/W-watawat.png', sound: '/sounds/W_watawat.mp3' },
+  ],
+  k: [],
+  l: [],
+  y: [],
+  n: [],
+  g: [],
+  h: [],
+  p: [],
+  r: [],
+  d: [],
 };
 
 function shuffle<T>(arr: T[]): T[] {
@@ -123,9 +140,13 @@ function buildQueue(letter: string): LetterAsset[] {
   return shuffle(assets);
 }
 
-const MARUNGKO_LETTERS: LetterProgress[] = [
+export function getLetterAssets(letter: string): LetterAsset[] {
+  return LETTER_ASSETS[letter.toLowerCase()] ?? [];
+}
+
+const LETTER_DETAILS: LetterProgress[] = [
   { letter: 'm', uppercase: 'M', lowercase: 'm', sound: '/m/', exampleWord: 'mesa',      completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
-  { letter: 's', uppercase: 'S', lowercase: 's', sound: '/s/', exampleWord: 'araw',      completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
+  { letter: 's', uppercase: 'S', lowercase: 's', sound: '/s/', exampleWord: 'saging',      completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
   { letter: 'a', uppercase: 'A', lowercase: 'a', sound: '/a/', exampleWord: 'araw',      completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
   { letter: 'i', uppercase: 'I', lowercase: 'i', sound: '/i/', exampleWord: 'ibon',      completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
   { letter: 'o', uppercase: 'O', lowercase: 'o', sound: '/o/', exampleWord: 'oras',      completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
@@ -138,22 +159,27 @@ const MARUNGKO_LETTERS: LetterProgress[] = [
   { letter: 'y', uppercase: 'Y', lowercase: 'y', sound: '/y/', exampleWord: 'yaya',      completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
   { letter: 'n', uppercase: 'N', lowercase: 'n', sound: '/n/', exampleWord: 'niyog',     completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
   { letter: 'g', uppercase: 'G', lowercase: 'g', sound: '/g/', exampleWord: 'gabi',      completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
-  { letter: 'h', uppercase: 'H', lowercase: 'h', sound: '/h/', exampleWord: 'halika',    completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
   { letter: 'p', uppercase: 'P', lowercase: 'p', sound: '/p/', exampleWord: 'puso',      completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
   { letter: 'r', uppercase: 'R', lowercase: 'r', sound: '/r/', exampleWord: 'rosas',     completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
   { letter: 'd', uppercase: 'D', lowercase: 'd', sound: '/d/', exampleWord: 'dalan',     completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
+  { letter: 'h', uppercase: 'H', lowercase: 'h', sound: '/h/', exampleWord: 'halika',    completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
   { letter: 'c', uppercase: 'C', lowercase: 'c', sound: '/k/', exampleWord: 'calamansi', completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
-  { letter: 'j', uppercase: 'J', lowercase: 'j', sound: '/j/', exampleWord: 'jusi',      completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
   { letter: 'f', uppercase: 'F', lowercase: 'f', sound: '/f/', exampleWord: 'flan',      completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
-  { letter: 'v', uppercase: 'V', lowercase: 'v', sound: '/v/', exampleWord: 'violeta',   completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
-  { letter: 'z', uppercase: 'Z', lowercase: 'z', sound: '/z/', exampleWord: 'zapatos',   completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
+  { letter: 'j', uppercase: 'J', lowercase: 'j', sound: '/j/', exampleWord: 'jusi',      completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
   { letter: 'q', uppercase: 'Q', lowercase: 'q', sound: '/k/', exampleWord: 'queen',     completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
+  { letter: 'v', uppercase: 'V', lowercase: 'v', sound: '/v/', exampleWord: 'violeta',   completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
   { letter: 'x', uppercase: 'X', lowercase: 'x', sound: '/ks/', exampleWord: 'xilofon', completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
+  { letter: 'z', uppercase: 'Z', lowercase: 'z', sound: '/z/', exampleWord: 'zapatos',   completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
+  { letter: 'w', uppercase: 'W', lowercase: 'w', sound: '/w/', exampleWord: 'walis', completed: false, tracingCompleted: false, listeningCompleted: false, assessmentScore: 0 },
 ];
+
+const MARUNGKO_LETTERS = MARUNGKO_ORDER.map(letter =>
+  LETTER_DETAILS.find(detail => detail.letter === letter)!
+);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentLetter, setCurrentLetter] = useState<LetterProgress | null>(MARUNGKO_LETTERS[0]);
-  const [currentPhase, setCurrentPhase] = useState<'anticipatory' | 'instruction' | 'guided' | 'independent' | 'assessment'>('anticipatory');
+  const [currentPhase, setCurrentPhase] = useState<AppPhase>('anticipatory');
 
   const [letterProgress, setLetterProgress] = useState<Record<string, LetterProgress>>(() => {
     const saved = localStorage.getItem('marungko-progress');
@@ -173,11 +199,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLetterProgress((prev) => ({ ...prev, [letter]: { ...prev[letter], ...progress } }));
   };
 
-  // ── Shared asset queue ──────────────────────────────────────────────────────
-  // Initialised eagerly from MARUNGKO_LETTERS[0] so the queue is ready on the
-  // very first render — no useEffect delay.
-  const queueRef      = useRef<LetterAsset[]>(buildQueue(MARUNGKO_LETTERS[0].letter));
-  const queueIndexRef = useRef<number>(0);
+  const queueRef       = useRef<LetterAsset[]>(buildQueue(MARUNGKO_LETTERS[0].letter));
+  const queueIndexRef  = useRef<number>(0);
   const queueLetterRef = useRef<string>(MARUNGKO_LETTERS[0].letter);
 
   const rebuildAssetQueue = useCallback((letter: string) => {
@@ -197,26 +220,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentLetter(letter);
   }, [rebuildAssetQueue]);
 
-  // 🔧 FIX: depend on the whole currentLetter object (not just .letter string).
-  // When a new user is created, currentLetter may be replaced with a *new object*
-  // that has the same .letter value ('m'). The old dep [currentLetter?.letter]
-  // saw no change and skipped — leaving the queue stale. Depending on the full
-  // object reference catches that case.
   useEffect(() => {
     if (!currentLetter) return;
     if (queueLetterRef.current !== currentLetter.letter) {
       rebuildAssetQueue(currentLetter.letter);
     }
-  }, [currentLetter]); // 🔧 whole object, not currentLetter?.letter
+  }, [currentLetter]);
 
-  // 🔧 FIX: resetForNewUser — called right after a new kid profile is created.
-  // Resets letter, phase, AND the queue atomically so nothing is stale.
   const resetForNewUser = useCallback(() => {
     const first = MARUNGKO_LETTERS[0];
-    // Reset queue first (synchronous, ref-based — no race)
     rebuildAssetQueue(first.letter);
-    // Then update React state (triggers re-render with clean data)
-    setCurrentLetter({ ...first }); // spread → new object reference → useEffect above also fires as a safety net
+    setCurrentLetter({ ...first });
     setCurrentPhase('anticipatory');
   }, [rebuildAssetQueue]);
 
@@ -234,15 +248,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const consumeNextAsset = useCallback((): LetterAsset | null => {
     const q = queueRef.current;
     if (!q.length) return null;
-
     const asset = q[queueIndexRef.current % q.length];
     queueIndexRef.current += 1;
-
     if (queueIndexRef.current >= q.length) {
       queueRef.current      = buildQueue(queueLetterRef.current);
       queueIndexRef.current = 0;
     }
-
     return asset;
   }, []);
 
@@ -255,9 +266,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const allLetters        = MARUNGKO_LETTERS;
-  const completedLetters  = Object.values(letterProgress).filter((l) => l.completed).length;
-  const overallProgress   = (completedLetters / allLetters.length) * 100;
+  const allLetters       = MARUNGKO_LETTERS;
+  const completedLetters = Object.values(letterProgress).filter((l) => l.completed).length;
+  const overallProgress  = (completedLetters / allLetters.length) * 100;
 
   return (
     <AppContext.Provider
@@ -274,7 +285,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         peekCurrentAsset,
         advanceQueue,
         resetAssetQueue,
-        resetForNewUser, // 🔧 FIX: expose to consumers
+        resetForNewUser,
       }}
     >
       {children}

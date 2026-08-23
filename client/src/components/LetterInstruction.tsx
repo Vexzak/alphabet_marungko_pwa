@@ -11,7 +11,7 @@ const SZ = 400;
 const BRUSH = 30;
 const O = '#FF8C42', T = '#5DCAA5', P = '#7F77DD';
 
-type GuideStroke = { pts: number[][]; n: string; c: string };
+type GuideStroke = { pts: number[][]; n: string; c: string; labelOffset?: [number, number]; d?: string; startTrim?: number; endTrim?: number };
 type LetterDef = { path: string; sw: number; guides: GuideStroke[] };
 
 function mg2(p1: number[][], c1: string, p2: number[][], c2: string, p3?: number[][], c3?: string): GuideStroke[] {
@@ -23,28 +23,194 @@ function mg1(p1: number[][], c1: string): GuideStroke[] {
   return [{ pts: p1, n: '1', c: c1 }];
 }
 
+// Reads every y-coordinate out of an SVG path string and returns [highest point, lowest point].
+// Used so the capline/baseline guide lines hug the ACTUAL top/bottom of each letter shape,
+// instead of a fixed number that curvy letters (C, G, O, Q, S...) naturally sweep past.
+function pathYBounds(d: string): [number, number] {
+  let min = Infinity, max = -Infinity;
+  const re = /(-?\d+\.?\d*),(-?\d+\.?\d*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(d))) {
+    const y = parseFloat(m[2]);
+    if (y < min) min = y;
+    if (y > max) max = y;
+  }
+  return [min, max];
+}
+
 const LETTERS: Record<string, LetterDef> = {
-  A: { path: 'M60,340 L200,45 L340,340 M108,222 L292,222', sw: 52, guides: mg2([[60,340],[200,45]], O, [[200,45],[340,340]], T, [[108,222],[292,222]], P) },
-  B: { path: 'M90,50 L90,350 M90,50 L195,50 Q268,50 268,148 Q268,200 185,200 L90,200 M90,200 L200,200 Q278,200 278,272 Q278,350 185,350 L90,350', sw: 48, guides: mg2([[90,50],[90,350]], O, [[90,50],[195,50],[255,90],[255,158],[185,200],[90,200]], T, [[90,200],[200,200],[265,240],[265,310],[185,350],[90,350]], P) },
-  C: { path: 'M310,115 Q268,48 198,48 Q78,48 78,200 Q78,352 198,352 Q268,352 310,285', sw: 52, guides: mg1([[310,115],[268,58],[198,48],[128,55],[88,102],[70,162],[75,232],[108,288],[155,335],[210,352],[272,342],[310,285]], O) },
-  D: { path: 'M90,50 L90,350 M90,50 L185,50 Q330,50 330,200 Q330,350 185,350 L90,350', sw: 50, guides: mg2([[90,50],[90,350]], O, [[90,50],[185,50],[310,100],[320,200],[305,300],[185,350],[90,350]], T) },
-  E: { path: 'M280,50 L90,50 L90,350 L280,350 M90,200 L240,200', sw: 48, guides: mg2([[90,350],[90,50]], O, [[90,50],[280,50],[90,50],[90,200],[240,200],[90,200],[90,350],[280,350]], T) },
-  F: { path: 'M90,50 L90,350 M90,50 L275,50 M90,200 L240,200', sw: 48, guides: mg2([[90,350],[90,50]], O, [[90,50],[275,50]], T, [[90,200],[240,200]], P) },
-  G: { path: 'M310,115 Q268,48 198,48 Q78,48 78,200 Q78,352 198,352 Q268,352 310,300 L310,200 L220,200', sw: 50, guides: mg1([[310,115],[268,58],[198,48],[128,55],[88,102],[70,162],[75,232],[108,288],[155,335],[210,352],[272,342],[310,300],[310,200],[220,200]], O) },
-  H: { path: 'M90,50 L90,350 M310,50 L310,350 M90,200 L310,200', sw: 50, guides: mg2([[90,50],[90,350]], O, [[310,50],[310,350]], T, [[90,200],[310,200]], P) },
-  I: { path: 'M140,50 L260,50 M200,50 L200,350 M140,350 L260,350', sw: 48, guides: mg2([[140,50],[260,50]], O, [[200,50],[200,350]], T, [[140,350],[260,350]], P) },
-  J: { path: 'M150,50 L265,50 M210,50 L210,290 Q210,355 155,355 Q100,355 90,300', sw: 48, guides: mg2([[150,50],[265,50]], O, [[210,50],[210,290],[200,340],[155,355],[105,340],[90,300]], T) },
-  K: { path: 'M90,50 L90,350 M300,50 L90,200 L300,350', sw: 50, guides: mg2([[90,50],[90,350]], O, [[300,50],[90,200],[300,350]], T) },
+  A: {
+    path: 'M60,340 L200,45 L340,340 M108,222 L292,222',
+    sw: 52,
+    guides: [
+      { pts: [[60,340],[200,45]], n: '1', c: O },
+      { pts: [[200,45],[340,340]], n: '2', c: T },
+      { pts: [[108,222],[292,222]], n: '3', c: P, startTrim: 35 },
+    ],
+  },
+  B: {
+    path: 'M90,50 L90,350 M90,50 L195,50 Q268,50 268,148 Q268,200 185,200 L90,200 M90,200 L200,200 Q278,200 278,272 Q278,350 185,350 L90,350',
+    sw: 48,
+    guides: [
+      { pts: [[90,50],[90,350]], n: '1', c: O },
+      { pts: [[90,50],[195,50],[255,90],[255,158],[185,200],[90,200]], d: 'M90,50 L195,50 Q268,50 268,148 Q268,200 185,200 L90,200', n: '2', c: T, startTrim: 30, endTrim: 115 },
+      { pts: [[90,200],[200,200],[265,240],[265,310],[185,350],[90,350]], d: 'M90,200 L200,200 Q278,200 278,272 Q278,350 185,350 L90,350', n: '3', c: P, startTrim: 40 },
+    ],
+  },
+  C: {
+    path: 'M310,115 Q268,48 198,48 Q78,48 78,200 Q78,352 198,352 Q268,352 310,285',
+    sw: 52,
+    guides: [
+      { pts: [[310,115],[268,58],[198,48],[128,55],[88,102],[70,162],[75,232],[108,288],[155,335],[210,352],[272,342],[310,285]], d: 'M310,115 Q268,48 198,48 Q78,48 78,200 Q78,352 198,352 Q268,352 310,285', n: '1', c: O },
+    ],
+  },
+  D: {
+    path: 'M90,50 L90,350 M90,50 L185,50 Q330,50 330,200 Q330,350 185,350 L90,350',
+    sw: 50,
+    guides: [
+      { pts: [[90,50],[90,350]], n: '1', c: O },
+      { pts: [[90,50],[185,50],[310,100],[320,200],[305,300],[185,350],[90,350]], d: 'M90,50 L185,50 Q330,50 330,200 Q330,350 185,350 L90,350', n: '2', c: T, startTrim: 30 },
+    ],
+  },
+  E: {
+    path: 'M280,50 L90,50 L90,350 L280,350 M90,200 L240,200',
+    sw: 48,
+    guides: [
+      // Stroke 1: the vertical spine, top to bottom
+      { pts: [[90,50],[90,350]], n: '1', c: O },
+      // Stroke 2: top horizontal arm, left to right
+      { pts: [[90,50],[280,50]], n: '2', c: T, startTrim: 30 },
+      // Stroke 3: middle horizontal arm, left to right
+      { pts: [[90,200],[240,200]], n: '3', c: P, startTrim: 30 },
+      // Stroke 4: bottom horizontal arm, left to right
+      { pts: [[90,350],[280,350]], n: '4', c: '#F2B705', startTrim: 30 },
+    ],
+  },
+  F: {
+    path: 'M90,50 L90,350 M90,50 L275,50 M90,200 L240,200',
+    sw: 48,
+    guides: [
+      { pts: [[90,50],[90,350]], n: '1', c: O },
+      { pts: [[90,50],[275,50]], n: '2', c: T, startTrim: 30 },
+      { pts: [[90,200],[240,200]], n: '3', c: P, startTrim: 30 },
+    ],
+  },
+  G: {
+    path: 'M310,115 Q268,48 198,48 Q78,48 78,200 Q78,352 198,352 Q268,352 310,300 L310,200 L220,200',
+    sw: 50,
+    guides: [
+      // Stroke 1: the big curve, extended down through the vertical drop
+      { pts: [[310,115],[268,58],[198,48],[128,55],[88,102],[70,162],[75,232],[108,288],[155,335],[210,352],[272,342],[310,300],[310,200]], d: 'M310,115 Q268,48 198,48 Q78,48 78,200 Q78,352 198,352 Q268,352 310,300 L310,200', n: '1', c: O },
+      // Stroke 2: straight horizontal bar only, no bend
+      { pts: [[310,200],[220,200]], d: 'M310,200 L220,200', n: '2', c: T },
+    ],
+  },
+  H: {
+    path: 'M90,50 L90,350 M310,50 L310,350 M90,200 L310,200',
+    sw: 50,
+    guides: [
+      { pts: [[90,50],[90,350]], n: '1', c: O },
+      { pts: [[310,50],[310,350]], n: '2', c: T },
+      { pts: [[90,200],[310,200]], n: '3', c: P, startTrim: 30 },
+    ],
+  },
+  I: {
+    path: 'M140,50 L260,50 M200,50 L200,350 M140,350 L260,350',
+    sw: 48,
+    guides: [
+      { pts: [[140,50],[260,50]], n: '1', c: O },
+      { pts: [[200,50],[200,350]], n: '2', c: T, startTrim: 35 },
+      { pts: [[140,350],[260,350]], n: '3', c: P },
+    ],
+  },
+  J: {
+    path: 'M150,50 L265,50 M210,50 L210,290 Q210,355 155,355 Q100,355 90,300',
+    sw: 48,
+    guides: [
+      { pts: [[150,50],[265,50]], n: '1', c: O },
+      { pts: [[210,50],[210,290],[200,340],[155,355],[105,340],[90,300]], d: 'M210,50 L210,290 Q210,355 155,355 Q100,355 90,300', n: '2', c: T, startTrim: 30 },
+    ],
+  },
+  K: {
+    path: 'M90,50 L90,350 M300,50 L90,200 L300,350',
+    sw: 50,
+    guides: [
+      { pts: [[90,50],[90,350]], n: '1', c: O },
+      { pts: [[300,50],[90,200]], n: '2', c: T },
+      { pts: [[90,200],[300,350]], n: '3', c: P, startTrim: 30 },
+    ],
+  },
   L: { path: 'M90,50 L90,350 L300,350', sw: 50, guides: mg2([[90,50],[90,350]], O, [[90,350],[300,350]], T) },
-  M: { path: 'M55,350 L55,50 L200,230 L345,50 L345,350', sw: 52, guides: mg2([[55,350],[55,50]], O, [[55,50],[200,230],[345,50]], T, [[345,50],[345,350]], P) },
+  M: {
+    path: 'M55,350 L55,50 L200,230 L345,50 L345,350',
+    sw: 52,
+    guides: [
+      // Stroke 1: straight down the left vertical
+      { pts: [[55,50],[55,350]], n: '1', c: O },
+      // Stroke 2: diagonal DOWN from top-left to the valley (trimmed at the
+      // start so it doesn't begin at the exact same corner as stroke 1)
+      { pts: [[55,50],[200,230]], n: '2', c: T, startTrim: 35 },
+      // Stroke 3: diagonal UP from the valley to top-right
+      { pts: [[200,230],[345,50]], n: '3', c: P },
+      // Stroke 4: straight down the right vertical
+      { pts: [[345,50],[345,350]], n: '4', c: '#F2B705' },
+    ],
+  },
   N: { path: 'M80,350 L80,50 L320,350 L320,50', sw: 50, guides: mg2([[80,350],[80,50]], O, [[80,50],[320,350]], T, [[320,350],[320,50]], P) },
-  O: { path: 'M200,48 Q320,48 320,200 Q320,352 200,352 Q80,352 80,200 Q80,48 200,48', sw: 52, guides: mg1([[200,48],[280,65],[320,130],[320,200],[320,270],[280,335],[200,352],[120,335],[80,270],[80,200],[80,130],[120,65],[200,48]], O) },
-  P: { path: 'M90,50 L90,350 M90,50 L200,50 Q290,50 290,155 Q290,210 200,210 L90,210', sw: 50, guides: mg2([[90,50],[90,350]], O, [[90,50],[200,50],[275,80],[278,155],[255,195],[200,210],[90,210]], T) },
-  Q: { path: 'M200,48 Q320,48 320,200 Q320,352 200,352 Q80,352 80,200 Q80,48 200,48 M240,270 L320,340', sw: 52, guides: mg2([[200,48],[280,65],[320,130],[320,200],[320,270],[280,335],[200,352],[120,335],[80,270],[80,200],[80,130],[120,65],[200,48]], O, [[240,270],[320,340]], T) },
-  R: { path: 'M90,50 L90,350 M90,50 L200,50 Q290,50 290,148 Q290,210 200,210 L90,210 M190,210 L310,350', sw: 50, guides: mg2([[90,50],[90,350]], O, [[90,50],[200,50],[278,80],[278,150],[255,198],[200,210],[90,210]], T, [[190,210],[310,350]], P) },
-  S: { path: 'M288,128 Q265,58 195,48 Q98,38 90,128 Q84,185 148,210 Q218,236 268,266 Q308,300 278,342 Q248,378 178,368 Q108,358 90,288', sw: 52, guides: mg1([[288,128],[262,62],[195,48],[128,56],[94,98],[88,148],[118,182],[175,208],[235,230],[272,262],[285,308],[258,348],[198,368],[138,360],[94,330],[88,288]], O) },
-  T: { path: 'M80,50 L320,50 M200,50 L200,350', sw: 50, guides: mg2([[80,50],[320,50]], O, [[200,50],[200,350]], T) },
-  U: { path: 'M80,50 L80,270 Q80,355 200,355 Q320,355 320,270 L320,50', sw: 50, guides: mg1([[80,50],[80,270],[100,330],[155,352],[200,355],[245,352],[300,330],[320,270],[320,50]], O) },
+  O: {
+    path: 'M200,48 Q320,48 320,200 Q320,352 200,352 Q80,352 80,200 Q80,48 200,48',
+    sw: 52,
+    guides: [
+      { pts: [[200,48],[280,65],[320,130],[320,200],[320,270],[280,335],[200,352],[120,335],[80,270],[80,200],[80,130],[120,65],[200,48]], d: 'M200,48 Q320,48 320,200 Q320,352 200,352 Q80,352 80,200 Q80,48 200,48', n: '1', c: O },
+    ],
+  },
+  P: {
+    path: 'M90,50 L90,350 M90,50 L200,50 Q290,50 290,155 Q290,210 200,210 L90,210',
+    sw: 50,
+    guides: [
+      { pts: [[90,50],[90,350]], n: '1', c: O },
+      { pts: [[90,50],[200,50],[275,80],[278,155],[255,195],[200,210],[90,210]], d: 'M90,50 L200,50 Q290,50 290,155 Q290,210 200,210 L90,210', n: '2', c: T, startTrim: 35 },
+    ],
+  },
+  Q: {
+    path: 'M200,48 Q320,48 320,200 Q320,352 200,352 Q80,352 80,200 Q80,48 200,48 M240,270 L320,340',
+    sw: 52,
+    guides: [
+      { pts: [[200,48],[120,65],[80,130],[80,200],[80,270],[120,335],[200,352],[280,335],[320,270],[320,200],[320,130],[280,65],[200,48]], d: 'M200,48 Q80,48 80,200 Q80,352 200,352 Q320,352 320,200 Q320,48 200,48', n: '1', c: O },
+      { pts: [[240,270],[320,340]], n: '2', c: T },
+    ],
+  },
+  R: {
+    path: 'M90,50 L90,350 M90,50 L200,50 Q290,50 290,148 Q290,210 200,210 L90,210 M190,210 L310,350',
+    sw: 50,
+    guides: [
+      { pts: [[90,50],[90,350]], n: '1', c: O },
+      { pts: [[90,50],[200,50],[278,80],[278,150],[255,198],[200,210],[90,210]], d: 'M90,50 L200,50 Q290,50 290,148 Q290,210 200,210 L90,210', n: '2', c: T, startTrim: 30 },
+      { pts: [[190,210],[310,350]], n: '3', c: P, startTrim: 30 },
+    ],
+  },
+  S: {
+    path: 'M288,128 Q265,58 195,48 Q98,38 90,128 Q84,185 148,210 Q218,236 268,266 Q308,300 278,342 Q248,378 178,368 Q108,358 90,288',
+    sw: 52,
+    guides: [
+      { pts: [[288,128],[262,62],[195,48],[128,56],[94,98],[88,148],[118,182],[175,208],[235,230],[272,262],[285,308],[258,348],[198,368],[138,360],[94,330],[88,288]], d: 'M288,128 Q265,58 195,48 Q98,38 90,128 Q84,185 148,210 Q218,236 268,266 Q308,300 278,342 Q248,378 178,368 Q108,358 90,288', n: '1', c: O },
+    ],
+  },
+  T: {
+    path: 'M80,50 L320,50 M200,50 L200,350',
+    sw: 50,
+    guides: [
+      { pts: [[80,50],[320,50]], n: '1', c: O },
+      { pts: [[200,50],[200,350]], n: '2', c: T, startTrim: 35 },
+    ],
+  },
+  U: {
+    path: 'M80,50 L80,270 Q80,355 200,355 Q320,355 320,270 L320,50',
+    sw: 50,
+    guides: [
+      { pts: [[80,50],[80,270],[100,330],[155,352],[200,355],[245,352],[300,330],[320,270],[320,50]], d: 'M80,50 L80,270 Q80,355 200,355 Q320,355 320,270 L320,50', n: '1', c: O },
+    ],
+  },
   V: { path: 'M65,50 L200,355 L335,50', sw: 50, guides: mg2([[65,50],[200,355]], O, [[200,355],[335,50]], T) },
   W: { path: 'M50,50 L120,350 L200,180 L280,350 L350,50', sw: 48, guides: mg2([[50,50],[120,350]], O, [[120,350],[200,180],[280,350]], T, [[280,350],[350,50]], P) },
   X: { path: 'M80,50 L320,350 M320,50 L80,350', sw: 50, guides: mg2([[80,50],[320,350]], O, [[320,50],[80,350]], T) },
@@ -53,33 +219,506 @@ const LETTERS: Record<string, LetterDef> = {
 };
 
 const LETTERS_LOWER: Record<string, LetterDef> = {
-  a: { path: 'M280,100 L280,285 Q280,320 310,325 M280,155 Q280,100 220,100 Q130,100 130,200 Q130,310 220,310 Q280,310 280,255', sw: 46, guides: mg2([[280,100],[280,285],[295,315],[310,325]], O, [[280,155],[260,105],[220,100],[165,105],[135,150],[130,200],[135,255],[165,300],[220,310],[268,310],[280,290],[280,255]], T) },
-  b: { path: 'M120,50 L120,310 M120,175 Q120,100 200,100 Q290,100 290,205 Q290,310 200,310 Q120,310 120,235', sw: 46, guides: mg2([[120,50],[120,310]], O, [[120,175],[140,108],[200,100],[258,108],[285,155],[290,205],[280,260],[245,305],[200,310],[155,305],[120,260],[120,235]], T) },
-  c: { path: 'M280,148 Q255,100 205,100 Q120,100 120,205 Q120,310 205,310 Q255,310 280,262', sw: 46, guides: mg1([[280,148],[255,108],[205,100],[160,108],[130,148],[120,205],[130,262],[160,302],[205,310],[255,302],[280,262]], O) },
-  d: { path: 'M280,50 L280,310 M280,175 Q280,100 200,100 Q110,100 110,205 Q110,310 200,310 Q245,305 280,260 Q280,245 280,235', sw: 46, guides: mg2([[280,50],[280,310]], O, [[280,175],[260,108],[200,100],[145,108],[115,155],[110,205],[120,260],[155,305],[200,310],[245,305],[280,260],[280,235]], T) },
-  e: { path: 'M120,215 L285,215 Q285,100 200,100 Q115,100 115,205 Q115,310 200,310 Q255,310 282,268', sw: 46, guides: mg2([[120,215],[285,215]], O, [[285,215],[285,155],[255,108],[200,100],[148,108],[120,155],[115,205],[125,262],[160,305],[200,310],[255,302],[282,268]], T) },
-  f: { path: 'M260,80 Q240,50 210,50 Q170,50 165,90 L165,310 M120,165 L230,165', sw: 44, guides: mg2([[260,80],[240,55],[210,50],[178,55],[165,90],[165,310]], O, [[120,165],[230,165]], T) },
-  g: { path: 'M280,155 Q280,100 220,100 Q130,100 130,200 Q130,305 220,305 Q280,305 280,255 L280,320 Q280,380 210,380 Q165,380 140,355', sw: 46, guides: mg2([[280,155],[260,105],[220,100],[165,105],[135,150],[130,200],[135,252],[165,298],[220,305],[268,298],[280,255]], O, [[280,255],[280,320],[270,368],[210,380],[165,376],[140,355]], T) },
-  h: { path: 'M120,50 L120,310 M120,190 Q140,100 220,100 Q290,100 290,180 L290,310', sw: 46, guides: mg2([[120,50],[120,310]], O, [[120,190],[138,118],[185,100],[235,108],[272,145],[290,180],[290,310]], T) },
+  a: {
+    path: 'M280,100 L280,285 Q280,320 310,325 M280,155 Q280,100 220,100 Q130,100 130,200 Q130,310 220,310 Q280,310 280,255',
+    sw: 46,
+    guides: [
+      { pts: [[280,100],[280,285],[295,315],[310,325]], d: 'M280,100 L280,285 Q280,320 310,325', n: '1', c: O },
+      { pts: [[280,155],[260,105],[220,100],[165,105],[135,150],[130,200],[135,255],[165,300],[220,310],[268,310],[280,290],[280,255]], d: 'M280,155 Q280,100 220,100 Q130,100 130,200 Q130,310 220,310 Q280,310 280,255', n: '2', c: T, startTrim: 45, endTrim: 20 },
+    ],
+  },
+  b: {
+    path: 'M120,50 L120,310 M120,226 Q120,180 200,180 Q290,180 290,245 Q290,310 200,310 Q120,310 120,264',
+    sw: 46,
+    guides: [
+      { pts: [[120,50],[120,310]], n: '1', c: O },
+      { pts: [[120,226],[140,185],[200,180],[258,185],[285,214],[290,245],[280,279],[245,307],[200,310],[155,307],[120,279],[120,264]], d: 'M120,226 Q120,180 200,180 Q290,180 290,245 Q290,310 200,310 Q120,310 120,264', n: '2', c: T, startTrim: 45, endTrim: 20 },
+    ],
+  },
+  c: {
+    path: 'M280,148 Q255,100 205,100 Q120,100 120,205 Q120,310 205,310 Q255,310 280,262',
+    sw: 46,
+    guides: [
+      { pts: [[280,148],[255,108],[205,100],[160,108],[130,148],[120,205],[130,262],[160,302],[205,310],[255,302],[280,262]], d: 'M280,148 Q255,100 205,100 Q120,100 120,205 Q120,310 205,310 Q255,310 280,262', n: '1', c: O },
+    ],
+  },
+  d: {
+    path: 'M280,50 L280,310 M280,235 Q280,195 205,195 Q145,195 145,252 Q145,310 205,310 Q243,308 280,283 Q280,275 280,270',
+    sw: 46,
+    guides: [
+      { pts: [[280,50],[280,310]], n: '1', c: O },
+      { pts: [[280,235],[262,200],[205,195],[158,200],[150,222],[145,252],[152,280],[180,305],[205,310],[243,308],[280,283],[280,270]], d: 'M280,235 Q280,195 205,195 Q145,195 145,252 Q145,310 205,310 Q243,308 280,283 Q280,275 280,270', n: '2', c: T, startTrim: 50, endTrim: 30 },
+    ],
+  },
+  e: {
+    path: 'M120,215 L285,215 Q285,100 200,100 Q115,100 115,205 Q115,310 200,310 Q255,310 282,268',
+    sw: 34,
+    guides: [
+      { pts: [[120,215],[285,215]], n: '1', c: O },
+      { pts: [[285,215],[285,155],[255,108],[200,100],[148,108],[120,155],[115,205],[125,262],[160,305],[200,310],[255,302],[282,268]], d: 'M285,215 Q285,100 200,100 Q115,100 115,205 Q115,310 200,310 Q255,310 282,268', n: '2', c: T },
+    ],
+  },
+  f: {
+    path: 'M260,80 Q240,50 210,50 Q170,50 165,90 L165,310 M120,165 L230,165',
+    sw: 44,
+    guides: [
+      { pts: [[260,80],[240,55],[210,50],[178,55],[165,90],[165,310]], d: 'M260,80 Q240,55 210,50 Q170,50 165,90 L165,310', n: '1', c: O },
+      { pts: [[120,165],[230,165]], n: '2', c: T },
+    ],
+  },
+  g: {
+    path: 'M280,200 Q280,100 200,100 Q110,100 110,200 Q110,300 200,300 Q280,300 280,200 L280,320 Q280,380 210,380 Q165,380 140,355',
+    sw: 34,
+    guides: [
+      { pts: [[280,200],[258,112],[200,100],[148,108],[115,150],[110,200],[115,255],[148,292],[200,300],[255,292],[280,200]], d: 'M280,200 Q280,100 200,100 Q110,100 110,200 Q110,300 200,300 Q280,300 280,200', n: '1', c: O, startTrim: 50, endTrim: 30 },
+      { pts: [[280,130],[280,320],[270,368],[210,380],[165,376],[140,355]], d: 'M280,130 L280,320 Q280,380 210,380 Q165,380 140,355', n: '2', c: T },
+    ],
+  },
+  h: {
+    path: 'M120,50 L120,310 M120,248 Q138,198 205,198 Q265,198 265,250 L265,310',
+    sw: 46,
+    guides: [
+      { pts: [[120,50],[120,310]], n: '1', c: O },
+      { pts: [[120,248],[136,210],[178,198],[220,203],[252,225],[265,250],[265,310]], d: 'M120,248 Q138,198 205,198 Q265,198 265,250 L265,310', n: '2', c: T, startTrim: 40 },
+    ],
+  },
   i: { path: 'M180,145 L180,350 M180,48 L180,75', sw: 44, guides: mg2([[180,145],[180,350]], O, [[180,48],[180,75]], T) },
-  j: { path: 'M210,100 L210,330 Q210,385 160,385 Q130,385 115,362', sw: 44, guides: mg2([[210,100],[210,330],[195,375],[160,385],[128,378],[115,362]], O, [[210,58],[210,72]], T) },
-  k: { path: 'M120,50 L120,310 M270,100 L120,210 L275,310', sw: 46, guides: mg2([[120,50],[120,310]], O, [[270,100],[120,210],[275,310]], T) },
-  l: { path: 'M180,50 L180,295 Q180,315 200,315', sw: 44, guides: mg1([[180,50],[180,295],[188,308],[200,315]], O) },
-  m: { path: 'M80,310 L80,80 L80,130 Q80,100 130,100 Q180,100 180,150 L180,310 M180,150 Q180,100 230,100 Q290,100 290,175 L290,310', sw: 46, guides: mg2([[80,310],[80,80],[95,108],[130,100],[165,108],[180,150],[180,310]], O, [[180,150],[180,108],[230,100],[272,108],[290,148],[290,175],[290,310]], T) },
-  n: { path: 'M110,310 L110,155 Q110,100 175,100 Q255,100 255,178 L255,310', sw: 46, guides: mg2([[110,310],[110,155],[122,108],[175,100],[222,108],[248,148],[255,178],[255,310]], O, [[110,155],[255,178]], T) },
-  o: { path: 'M200,100 Q290,100 290,205 Q290,310 200,310 Q110,310 110,205 Q110,100 200,100', sw: 48, guides: mg1([[200,100],[260,108],[288,155],[290,205],[282,260],[250,302],[200,310],[150,302],[118,260],[110,205],[118,150],[150,108],[200,100]], O) },
-  p: { path: 'M120,155 Q120,100 200,100 Q290,100 290,205 Q290,310 200,310 Q120,310 120,240 L120,385', sw: 46, guides: mg2([[120,155],[138,108],[200,100],[258,108],[285,155],[290,205],[280,260],[245,305],[200,310],[155,305],[120,260],[120,240]], O, [[120,240],[120,385]], T) },
-  q: { path: 'M280,155 Q280,100 200,100 Q110,100 110,205 Q110,310 200,310 Q245,305 280,260 L280,240 L280,385', sw: 46, guides: mg2([[280,155],[260,108],[200,100],[145,108],[115,155],[110,205],[120,260],[155,305],[200,310],[245,305],[280,260],[280,240]], O, [[280,240],[280,385]], T) },
-  r: { path: 'M120,310 L120,155 M120,190 Q140,100 220,100 Q252,100 265,118', sw: 44, guides: mg2([[120,310],[120,155],[120,190]], O, [[120,190],[142,118],[200,100],[245,108],[265,118]], T) },
-  s: { path: 'M268,148 Q248,100 195,100 Q120,100 122,168 Q124,210 195,225 Q268,240 272,285 Q275,330 205,330 Q155,330 128,295', sw: 46, guides: mg1([[268,148],[248,108],[195,100],[148,108],[122,145],[122,168],[150,205],[195,225],[242,242],[268,272],[272,302],[250,325],[205,330],[162,328],[128,295]], O) },
-  t: { path: 'M185,55 L185,295 Q185,315 210,315 M130,160 L248,160', sw: 44, guides: mg2([[185,55],[185,295],[195,310],[210,315]], O, [[130,160],[248,160]], T) },
-  u: { path: 'M110,100 L110,260 Q110,315 185,315 Q255,315 255,255 L255,100 L255,310', sw: 46, guides: mg2([[110,100],[110,260],[125,305],[185,315],[240,305],[255,255],[255,100]], O, [[255,100],[255,310]], T) },
+  j: {
+    path: 'M210,100 L210,330 Q210,385 160,385 Q130,385 115,362 M210,-20 L210,5',
+    sw: 44,
+    guides: [
+      { pts: [[210,100],[210,330],[195,375],[160,385],[128,378],[115,362]], d: 'M210,100 L210,330 Q210,385 160,385 Q130,385 115,362', n: '1', c: O },
+      { pts: [[210,-20],[210,5]], n: '2', c: T },
+    ],
+  },
+  k: {
+    // Diagonal strokes raised from raw y=100 to y=180, so after this
+    // letter's headline->baseline scaling they land starting at the
+    // midline instead of stretching up near the headline — matching
+    // x-height-only strokes like v/w/x/y.
+    path: 'M120,50 L120,310 M235,180 L120,245 L238,310',
+    sw: 46,
+    guides: [
+      { pts: [[120,50],[120,310]], n: '1', c: O },
+      { pts: [[235,180],[120,245]], n: '2', c: T },
+      { pts: [[120,245],[238,310]], n: '3', c: P, startTrim: 30 },
+    ],
+  },
+  l: {
+    path: 'M180,50 L180,295 Q180,315 200,315',
+    sw: 44,
+    guides: [
+      { pts: [[180,50],[180,295],[188,308],[200,315]], d: 'M180,50 L180,295 Q180,315 200,315', n: '1', c: O },
+    ],
+  },
+  m: {
+    // Rescaled so the peak of the arches sits exactly on the midline (200) and the baseline
+    // matches the capital's baseline (350) — same ruled-paper convention as real Zaner-Bloser sheets.
+    path: 'M80,350 L80,186 L80,221 Q80,200 130,200 Q180,200 180,236 L180,350 M180,236 Q180,200 230,200 Q290,200 290,254 L290,350',
+    sw: 33,
+    guides: [
+      // Stroke 1: the left leg, straight down
+      { pts: [[80,200],[80,350]], n: '1', c: O },
+      // Stroke 2: first hump, curving down into the middle leg
+      {
+        pts: [[80,221],[130,200],[180,236],[180,350]],
+        d: 'M80,221 Q80,200 130,200 Q180,200 180,236 L180,350',
+        n: '2', c: T, startTrim: 20,
+      },
+      // Stroke 3: second hump (starts fresh at the top-center valley — no longer joined to stroke 2), curving down into the last leg
+      {
+        pts: [[180,236],[230,200],[290,254],[290,350]],
+        d: 'M180,236 Q180,200 230,200 Q290,200 290,254 L290,350',
+        n: '3', c: P, startTrim: 20,
+      },
+    ],
+  },
+  n: {
+    path: 'M110,310 L110,70 Q110,100 175,100 Q255,100 255,178 L255,310',
+    sw: 46,
+    guides: [
+      // Stroke 1: leg extended upward, straight down
+      { pts: [[110,60],[110,310]], n: '1', c: O },
+      // Stroke 2: arch over the top and down into the right leg
+      { pts: [[110,155],[122,108],[175,100],[222,108],[248,148],[255,178],[255,310]], d: 'M110,155 Q110,100 175,100 Q255,100 255,178 L255,310', n: '2', c: T, startTrim: 45 },
+    ],
+  },
+  o: {
+    path: 'M200,100 Q290,100 290,205 Q290,310 200,310 Q110,310 110,205 Q110,100 200,100',
+    sw: 48,
+    guides: [
+      { pts: [[200,100],[260,108],[288,155],[290,205],[282,260],[250,302],[200,310],[150,302],[118,260],[110,205],[118,150],[150,108],[200,100]], d: 'M200,100 Q290,100 290,205 Q290,310 200,310 Q110,310 110,205 Q110,100 200,100', n: '1', c: O },
+    ],
+  },
+  p: {
+    path: 'M120,200 Q120,100 200,100 Q290,100 290,205 Q290,310 200,310 Q120,310 120,200 L120,385',
+    sw: 46,
+    guides: [
+      { pts: [[120,170],[120,385]], n: '1', c: O },
+            { pts: [[120,200],[138,108],[200,100],[258,108],[285,155],[290,205],[280,260],[245,305],[200,310],[155,305],[120,260],[120,200]], d: 'M120,200 Q120,100 200,100 Q290,100 290,205 Q290,310 200,310 Q120,310 120,200', n: '2', c: T, startTrim: 50, endTrim: 50 },
+    ],
+  },
+  q: {
+    path: 'M280,205 Q280,100 200,100 Q110,100 110,205 Q110,310 200,310 Q280,310 280,205 L280,385',
+    sw: 46,
+    guides: [
+      { pts: [[280,205],[260,108],[200,100],[145,108],[115,155],[110,205],[110,260],[145,302],[200,310],[255,302],[280,260],[280,205]], d: 'M280,205 Q280,100 200,100 Q110,100 110,205 Q110,310 200,310 Q280,310 280,205', n: '1', c: O, startTrim: 50, endTrim: 30 },
+      { pts: [[280,150],[280,385]], n: '2', c: T },
+    ],
+  },
+  r: {
+    path: 'M120,310 L120,70 M120,190 Q140,100 220,100 Q252,100 265,118',
+    sw: 44,
+    guides: [
+      { pts: [[120,70],[120,310]], n: '1', c: O },
+      { pts: [[120,190],[142,118],[200,100],[245,108],[265,118]], d: 'M120,190 Q140,100 220,100 Q252,100 265,118', n: '2', c: T, startTrim: 30 },
+    ],
+  },
+  s: {
+    path: 'M268,148 Q248,100 195,100 Q120,100 122,168 Q124,210 195,225 Q268,240 272,285 Q275,330 205,330 Q155,330 128,295',
+    sw: 46,
+    guides: [
+      { pts: [[268,148],[248,108],[195,100],[148,108],[122,145],[122,168],[150,205],[195,225],[242,242],[268,272],[272,302],[250,325],[205,330],[162,328],[128,295]], d: 'M268,148 Q248,100 195,100 Q120,100 122,168 Q124,210 195,225 Q268,240 272,285 Q275,330 205,330 Q155,330 128,295', n: '1', c: O },
+    ],
+  },
+  t: {
+    path: 'M185,55 L185,295 Q185,315 210,315 M130,160 L248,160',
+    sw: 44,
+    guides: [
+      { pts: [[185,55],[185,295],[195,310],[210,315]], d: 'M185,55 L185,295 Q185,315 210,315', n: '1', c: O },
+      { pts: [[130,160],[248,160]], n: '2', c: T },
+    ],
+  },
+  u: {
+    path: 'M110,100 L110,260 Q110,315 185,315 Q255,315 255,255 L255,100 L255,310',
+    sw: 46,
+    guides: [
+       { pts: [[110,100],[110,260],[125,305],[185,315],[240,305],[255,255],[255,100]], d: 'M110,100 L110,260 Q110,315 185,315 Q255,315 255,255 L255,100', n: '1', c: O, endTrim: 130 },
+      { pts: [[255,100],[255,320]], n: '2', c: T },
+    ],
+  },
   v: { path: 'M100,100 L200,320 L300,100', sw: 46, guides: mg2([[100,100],[200,320]], O, [[200,320],[300,100]], T) },
   w: { path: 'M70,100 L140,320 L200,180 L260,320 L330,100', sw: 46, guides: mg2([[70,100],[140,320]], O, [[140,320],[200,180],[260,320]], T, [[260,320],[330,100]], P) },
   x: { path: 'M110,100 L300,320 M300,100 L110,320', sw: 46, guides: mg2([[110,100],[300,320]], O, [[300,100],[110,320]], T) },
   y: { path: 'M100,100 L200,270 M300,100 L200,270 L165,340 Q145,385 105,380', sw: 46, guides: mg2([[100,100],[200,270]], O, [[300,100],[200,270],[165,340],[148,372],[105,380]], T) },
   z: { path: 'M120,100 L295,100 L120,310 L295,310', sw: 46, guides: mg2([[120,100],[295,100]], O, [[295,100],[120,310]], T, [[120,310],[295,310]], P) },
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// FIXED GRID + LETTER SIZING
+// ─────────────────────────────────────────────────────────────────────────
+// Every capital spans HEADLINE→BASELINE exactly, and every lowercase letter
+// is grouped into one of the three real Zaner-Bloser categories so it sits
+// in the correct zone: x-height letters sit MIDLINE→BASELINE, ascenders
+// reach up to HEADLINE, and descenders dip below BASELINE. This ONLY
+// changes how big/where each letter is drawn — the numbered arrow+circle
+// guides below still work exactly the way they always have, just re-plotted
+// onto the resized letter.
+const HEADLINE = 5;
+const MIDLINE = 183;
+const BASELINE = 360;
+const DESCENDER_DEPTH = 30; // how far below baseline g/j/p/q/y are allowed to drop
+
+const ASCENDER_LETTERS = new Set(['b', 'd', 'f', 'h', 'k', 'l', 't', 'i']);
+const DESCENDER_LETTERS = new Set(['g', 'j', 'p', 'q', 'y']);
+
+type LowerCategory = 'xheight' | 'ascender' | 'descender';
+function getLowerCategory(letter: string): LowerCategory {
+  if (DESCENDER_LETTERS.has(letter)) return 'descender';
+  if (ASCENDER_LETTERS.has(letter)) return 'ascender';
+  return 'xheight';
+}
+
+// Renders a path to an offscreen canvas at its authored stroke width and
+// scans for the topmost/bottommost non-transparent pixel rows. This gives
+// the TRUE visual ink bounds (curves + stroke width included), unlike
+// reading raw coordinates out of the path string.
+function measurePathBounds(d: string, strokeWidth: number): { top: number; bottom: number } {
+  const PAD = 120;
+  const size = SZ + PAD * 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  ctx.translate(PAD, PAD);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = strokeWidth;
+  ctx.stroke(new Path2D(d));
+  const { data } = ctx.getImageData(0, 0, size, size);
+  let top = Infinity, bottom = -Infinity;
+  for (let y = 0; y < size; y++) {
+    const rowStart = y * size * 4;
+    let hasInk = false;
+    for (let x = 0; x < size; x++) {
+      if (data[rowStart + x * 4 + 3] > 10) { hasInk = true; break; }
+    }
+    if (hasInk) {
+      if (y < top) top = y;
+      if (y > bottom) bottom = y;
+    }
+  }
+  if (!isFinite(top)) return { top: 0, bottom: SZ };
+  return { top: top - PAD, bottom: bottom - PAD };
+}
+
+// Vertically rescales+repositions a path so its measured [srcTop, srcBottom]
+// maps exactly onto [dstTop, dstBottom]. X coordinates are untouched.
+// Used for UPPERCASE, where headline→baseline is close to the letter's
+// natural proportions already.
+function transformPathY(d: string, srcTop: number, srcBottom: number, dstTop: number, dstBottom: number): string {
+  const span = (srcBottom - srcTop) || 1;
+  const scale = (dstBottom - dstTop) / span;
+  return d.replace(/(-?\d+\.?\d*),(-?\d+\.?\d*)/g, (_: string, x: string, y: string) => {
+    const ny = dstTop + (parseFloat(y) - srcTop) * scale;
+    return `${x},${ny}`;
+  });
+}
+
+// Uniformly rescales a path (x AND y by the same factor) so [srcTop, srcBottom]
+// maps onto [dstTop, dstBottom], keeping the letter horizontally centered on
+// its own midpoint. Used for LOWERCASE, where the x-height/ascender/descender
+// band is much shorter than the letter's natural width — scaling y only would
+// stretch the width relative to height and make letters look squished.
+function transformPathUniform(d: string, srcTop: number, srcBottom: number, dstTop: number, dstBottom: number): string {
+  const span = (srcBottom - srcTop) || 1;
+  const scale = (dstBottom - dstTop) / span;
+
+  let minX = Infinity, maxX = -Infinity;
+  const re = /(-?\d+\.?\d*),(-?\d+\.?\d*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(d))) {
+    const x = parseFloat(m[1]);
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+  }
+  const centerX = (minX + maxX) / 2;
+
+  return d.replace(/(-?\d+\.?\d*),(-?\d+\.?\d*)/g, (_: string, x: string, y: string) => {
+    const nx = centerX + (parseFloat(x) - centerX) * scale;
+    const ny = dstTop + (parseFloat(y) - srcTop) * scale;
+    return `${nx},${ny}`;
+  });
+}
+
+// Finds the horizontal midpoint of a path's bounding box — used to keep
+// lowercase guide points centered the same way transformPathUniform
+// centers the letter itself.
+function getPathXCenter(d: string): number {
+  let minX = Infinity, maxX = -Infinity;
+  const re = /(-?\d+\.?\d*),(-?\d+\.?\d*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(d))) {
+    const x = parseFloat(m[1]);
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+  }
+  return (minX + maxX) / 2;
+}
+
+// For letters whose path includes a decorative dot (e.g. lowercase j) that
+// should NOT influence the letter's own auto-scaling bounds — otherwise the
+// dot stretches/compresses the whole letter's scale factor. This strips the
+// dot subpath out before measuring, so the main body scales exactly as if
+// the dot didn't exist; the dot then rides along using the body's own
+// transform, extrapolated above it.
+function getBoundsPath(letter: string, isUppercase: boolean, path: string): string {
+  if (!isUppercase && letter.toLowerCase() === 'j') {
+    return path.split(' M')[0]; // keep only the body subpath, drop the dot
+  }
+  return path;
+}
+
+// Cache: measuring + normalizing involves an offscreen canvas raster scan,
+// so we only want to do it once per letter/case, not on every render.
+const normalizedPathCache = new Map<string, string>();
+
+function getNormalizedPath(letter: string, isUppercase: boolean): string {
+  const cacheKey = `${isUppercase ? 'U' : 'L'}:${letter}`;
+  const cached = normalizedPathCache.get(cacheKey);
+  if (cached) return cached;
+
+  const def = isUppercase
+    ? (LETTERS[letter.toUpperCase()] ?? LETTERS['A'])
+    : (LETTERS_LOWER[letter.toLowerCase()] ?? LETTERS_LOWER['a']);
+
+  const measureWidth = def.sw + 8;
+  const { top, bottom } = measurePathBounds(getBoundsPath(letter, isUppercase, def.path), measureWidth);
+
+  let dstTop: number, dstBottom: number;
+  if (isUppercase) {
+    dstTop = HEADLINE;
+    dstBottom = BASELINE;
+  } else {
+    const cat = getLowerCategory(letter.toLowerCase());
+    if (cat === 'ascender') {
+      dstTop = HEADLINE;
+      dstBottom = BASELINE;
+    } else if (cat === 'descender') {
+      dstTop = MIDLINE;
+      dstBottom = BASELINE + DESCENDER_DEPTH;
+    } else {
+      dstTop = MIDLINE;
+      dstBottom = BASELINE;
+    }
+  }
+
+  const normalized = isUppercase
+    ? transformPathY(def.path, top, bottom, dstTop, dstBottom)
+    : transformPathUniform(def.path, top, bottom, dstTop, dstBottom);
+  normalizedPathCache.set(cacheKey, normalized);
+  return normalized;
+}
+
+// Samples exact points along a REAL SVG path (including Q/Bezier curves) using
+// the browser's native path length API, instead of the hand-drawn straight-line
+// polygon approximations in `guides`. This is what makes curved-letter arrows
+// (O, C, S, U, b, c, o, etc.) hug the actual letter curve instead of a polygon.
+const svgPathSampleCache = new Map<string, number[][]>();
+
+function sampleSvgPathPoints(d: string, numSamples = 72): number[][] {
+  const cached = svgPathSampleCache.get(d);
+  if (cached) return cached;
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  const pathEl = document.createElementNS(svgNS, 'path');
+  pathEl.setAttribute('d', d);
+  svg.appendChild(pathEl);
+  svg.style.position = 'absolute';
+  svg.style.width = '0';
+  svg.style.height = '0';
+  svg.style.overflow = 'hidden';
+  svg.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(svg);
+
+  const points: number[][] = [];
+  try {
+    const total = pathEl.getTotalLength();
+    for (let i = 0; i <= numSamples; i++) {
+      const pt = pathEl.getPointAtLength((i / numSamples) * total);
+      points.push([pt.x, pt.y]);
+    }
+  } finally {
+    document.body.removeChild(svg);
+  }
+
+  svgPathSampleCache.set(d, points);
+  return points;
+}
+
+// ── Generic polyline helpers (canvas-pixel-space, unit-agnostic) ──────────
+// Used to trim a small visible gap at the start/end of every guide stroke
+// (so strokes that used to touch at shared letter-joining points no longer
+// connect), and to find the arrowhead tip / number anchor along a stroke.
+function polylineLength(pts: number[][]): number {
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) {
+    total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  }
+  return total;
+}
+
+function pointAtDistance(pts: number[][], dist: number): number[] {
+  if (pts.length === 0) return [0, 0];
+  if (pts.length === 1) return pts[0];
+  let acc = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const segLen = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    if (acc + segLen >= dist || i === pts.length - 1) {
+      const t = segLen > 0 ? Math.min(1, Math.max(0, (dist - acc) / segLen)) : 0;
+      return [
+        pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t,
+        pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t,
+      ];
+    }
+    acc += segLen;
+  }
+  return pts[pts.length - 1];
+}
+
+// Returns the portion of a polyline strictly between distances fromD and
+// toD (measured along the path), with newly-interpolated endpoints — used
+// to shorten a stroke away from its natural start/end so a visible gap
+// appears where it used to touch a neighboring stroke.
+function slicePolylineByDistance(pts: number[][], fromD: number, toD: number): number[][] {
+  const acc: number[] = [0];
+  for (let i = 1; i < pts.length; i++) {
+    acc.push(acc[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  }
+  const start = pointAtDistance(pts, fromD);
+  const end = pointAtDistance(pts, toD);
+  const mid = pts.filter((_, i) => acc[i] > fromD && acc[i] < toD);
+  return [start, ...mid, end];
+}
+
+// Cache for normalized guide points. This ONLY moves each guide stroke's
+// points to match the letter's new size/position (same transform as
+// getNormalizedPath) — it does NOT touch color, arrow direction, or the
+// numbered-circle rendering. It also returns the letter's own center point
+// (in the same normalized space) so numbers can be nudged toward the
+// interior of the letter.
+type NormalizedGuides = { guides: GuideStroke[]; cx: number; cy: number };
+const normalizedGuidePointsCache = new Map<string, NormalizedGuides>();
+
+function getNormalizedGuidePoints(letter: string, isUppercase: boolean): NormalizedGuides {
+  const cacheKey = `${isUppercase ? 'U' : 'L'}:${letter}`;
+  const cached = normalizedGuidePointsCache.get(cacheKey);
+  if (cached) return cached;
+
+  const def = isUppercase
+    ? (LETTERS[letter.toUpperCase()] ?? LETTERS['A'])
+    : (LETTERS_LOWER[letter.toLowerCase()] ?? LETTERS_LOWER['a']);
+
+  const measureWidth = def.sw + 8;
+  const { top, bottom } = measurePathBounds(getBoundsPath(letter, isUppercase, def.path), measureWidth);
+
+  let dstTop: number, dstBottom: number;
+  if (isUppercase) {
+    dstTop = HEADLINE;
+    dstBottom = BASELINE;
+  } else {
+    const cat = getLowerCategory(letter.toLowerCase());
+    if (cat === 'ascender') {
+      dstTop = HEADLINE;
+      dstBottom = BASELINE;
+    } else if (cat === 'descender') {
+      dstTop = MIDLINE;
+      dstBottom = BASELINE + DESCENDER_DEPTH;
+    } else {
+      dstTop = MIDLINE;
+      dstBottom = BASELINE;
+    }
+  }
+
+  const span = (bottom - top) || 1;
+  const scale = (dstBottom - dstTop) / span;
+  const centerX = getPathXCenter(def.path);
+
+  const normalized: GuideStroke[] = def.guides.map(g => {
+    // If this stroke has a precise `d` (curved strokes), sample the REAL
+    // curve instead of the hand-drawn polygon approximation in `pts`. This
+    // is what makes the arrow hug the exact same ink as the gray letter
+    // outline underneath, instead of a slightly-off polygon.
+    const basePts = g.d ? sampleSvgPathPoints(g.d) : g.pts;
+    return {
+      ...g,
+      pts: basePts.map(([x, y]) => {
+        const ny = dstTop + (y - top) * scale;
+        const nx = isUppercase ? x : centerX + (x - centerX) * scale;
+        return [nx, ny];
+      }),
+      labelOffset: g.labelOffset
+        ? ([isUppercase ? g.labelOffset[0] : g.labelOffset[0] * scale, g.labelOffset[1] * scale] as [number, number])
+        : undefined,
+    };
+  });
+
+  const result: NormalizedGuides = { guides: normalized, cx: centerX, cy: (dstTop + dstBottom) / 2 };
+  normalizedGuidePointsCache.set(cacheKey, result);
+  return result;
+}
 
 const SOUND_PLAYS_NEEDED = 3;
 const ERASER_BRUSH = 40;
@@ -256,79 +895,169 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
 
   const buildMask = useCallback((sz: number, isUppercase: boolean) => {
     const def = getLetterDef(isUppercase);
+    const letter = getLetter(isUppercase);
     const tmp = document.createElement('canvas');
     tmp.width = sz; tmp.height = sz;
     const tctx = tmp.getContext('2d')!;
     tctx.lineCap = 'round'; tctx.lineJoin = 'round';
     tctx.strokeStyle = '#000';
     tctx.lineWidth = sc(def.sw, sz) + 2;
-    tctx.stroke(new Path2D(scalePath(def.path, sz)));
+    const normalizedPath = getNormalizedPath(letter, isUppercase);
+    tctx.stroke(new Path2D(scalePath(normalizedPath, sz)));
     if (isUppercase) maskRefUpper.current = tctx.getImageData(0, 0, sz, sz);
     else             maskRefLower.current = tctx.getImageData(0, 0, sz, sz);
-  }, [getLetterDef, scalePath]);
+  }, [getLetterDef, getLetter, scalePath]);
 
   const drawLetter = useCallback((sz: number, isUppercase: boolean) => {
     const lc = isUppercase ? letterCanvasRefUpper.current : letterCanvasRefLower.current;
     if (!lc) return;
     const ctx = lc.getContext('2d')!;
     const def = getLetterDef(isUppercase);
+    const letter = getLetter(isUppercase);
 
     ctx.clearRect(0, 0, sz, sz);
-    ctx.save();
-    [0.25, 0.5, 0.75].forEach(t => {
-      ctx.strokeStyle = 'rgba(150,170,220,0.2)'; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
-      ctx.beginPath(); ctx.moveTo(0, sz * t); ctx.lineTo(sz, sz * t); ctx.stroke();
-    });
-    ctx.setLineDash([]); ctx.restore();
 
-    const p  = new Path2D(scalePath(def.path, sz));
+    // Zaner-Bloser 3-line system: solid headline (top), dashed midline (x-height), solid baseline.
+    // Fixed grid, shared by every letter.
+    ctx.save();
+    ctx.strokeStyle = 'rgba(70,80,110,0.5)'; ctx.lineWidth = 2; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(0, sc(HEADLINE, sz)); ctx.lineTo(sz, sc(HEADLINE, sz)); ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(70,80,110,0.38)'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 5]);
+    ctx.beginPath(); ctx.moveTo(0, sc(MIDLINE, sz)); ctx.lineTo(sz, sc(MIDLINE, sz)); ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(70,80,110,0.5)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, sc(BASELINE, sz)); ctx.lineTo(sz, sc(BASELINE, sz)); ctx.stroke();
+    ctx.restore();
+
+    const normalizedPath = getNormalizedPath(letter, isUppercase);
+    const p  = new Path2D(scalePath(normalizedPath, sz));
     const sw = sc(def.sw, sz);
     ctx.save();
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.strokeStyle = '#000'; ctx.lineWidth = sw + 8;  ctx.stroke(p);
     ctx.strokeStyle = '#f9f8f5'; ctx.lineWidth = sw + 2; ctx.stroke(p);
-    ctx.strokeStyle = '#999';   ctx.lineWidth = 1.8;     ctx.stroke(p);
+    // NOTE: the thin gray '#999' outline pass that used to sit here has been
+    // removed — the dashed guide arrows below now draw directly on top of
+    // the exact same ink (sampled from this letter's own real path), so they
+    // replace that gray line instead of layering over/near it.
     ctx.restore();
 
-    def.guides.forEach(g => {
-      const pts = g.pts.map(pt => scp(pt, sz));
-      const [sx, sy] = pts[0];
-      const r = sc(14, sz);
+    const { guides, cx: cxRaw, cy: cyRaw } = getNormalizedGuidePoints(letter, isUppercase);
+    const centerPx: [number, number] = [sc(cxRaw, sz), sc(cyRaw, sz)];
+
+    // Tunables (in the 400-unit letter space, scaled to canvas pixels below):
+    // GAP separates each stroke from strokes it used to touch/join (raised,
+    // and the cap on short strokes below is loosened, so tight-curve letters
+    // like lowercase a/b no longer look like one continuous joined arrow);
+    // HEAD_LEN is the visible arrowhead length; DASH is the on/off pattern
+    // for the shaft; NUM_R is the number-circle radius; NUM_GAP is a FIXED
+    // pixel gap between a stroke and its number (previously this was a
+    // percentage-of-distance-to-center nudge, which made the gap balloon on
+    // wide strokes and vanish on tight ones — now every letter gets the same
+    // small, consistent gap).
+    const GAP      = sc(20, sz);
+    const HEAD_LEN = sc(12, sz);
+    const DASH_ON  = sc(9, sz);
+    const DASH_OFF = sc(6, sz);
+    const NUM_R    = sc(7.5, sz);
+    const NUM_GAP  = sc(-3, sz);
+
+    guides.forEach(g => {
+      let pts = g.pts.map(pt => scp(pt, sz));
+      if (pts.length < 2) return;
+
+      // Optional: push this stroke's actual starting point further along its
+      // own path before anything else is computed. Used when two strokes
+      // share the exact same physical start corner (e.g. M's strokes 1 & 2,
+      // or m's leg vs. hump strokes) — without this, both strokes' numbers
+      // get placed on top of each other since each is just "pulled back a
+      // fixed gap from its own start." Trimming the start moves that shared
+      // point apart in each stroke's own direction.
+      if (g.startTrim) {
+        const trimPx = sc(g.startTrim, sz);
+        const rawTotal = polylineLength(pts);
+        if (trimPx > 0 && trimPx < rawTotal) {
+          pts = slicePolylineByDistance(pts, trimPx, rawTotal);
+        }
+      }
+      // Same idea but from the tail end — used when a stroke's arrowhead
+      // visually runs into a different stroke's line (e.g. lowercase a's
+      // loop arrow ending right where the tail stroke begins).
+      if (g.endTrim) {
+        const trimPx = sc(g.endTrim, sz);
+        const rawTotal = polylineLength(pts);
+        if (trimPx > 0 && trimPx < rawTotal) {
+          pts = slicePolylineByDistance(pts, 0, rawTotal - trimPx);
+        }
+      }
+
+      const total = polylineLength(pts);
+      if (total < 1) return;
+
+      // Trim a gap off BOTH ends — separates strokes that used to share a
+      // coordinate (letter-joining points) into visibly distinct arrows.
+      const startGap = Math.min(GAP, total * 0.32);
+      const endGap   = Math.min(GAP, total * 0.32);
+      const tipD     = Math.max(startGap + 0.5, total - endGap);
+      const tip      = pointAtDistance(pts, tipD);
+
+      // Shaft stops a bit before the tip so the arrowhead sits cleanly on
+      // top of it instead of the dashes poking through the triangle.
+      const lineEndD = Math.max(startGap, tipD - HEAD_LEN);
+      const beforeTip = pointAtDistance(pts, Math.max(startGap, tipD - 1));
+      const ang = Math.atan2(tip[1] - beforeTip[1], tip[0] - beforeTip[0]);
+
       ctx.save();
+      ctx.strokeStyle = g.c;
+      ctx.lineWidth = sc(4, sz);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (lineEndD - startGap > 1) {
+        const shaft = slicePolylineByDistance(pts, startGap, lineEndD);
+        ctx.setLineDash([DASH_ON, DASH_OFF]);
+        ctx.beginPath();
+        ctx.moveTo(shaft[0][0], shaft[0][1]);
+        for (let i = 1; i < shaft.length; i++) ctx.lineTo(shaft[i][0], shaft[i][1]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Solid arrowhead at the tip, pointing along the stroke's own direction.
       ctx.fillStyle = g.c;
-      ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.font = `bold ${Math.round(r * 1.15)}px sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(g.n, sx, sy);
+      ctx.beginPath();
+      ctx.moveTo(tip[0], tip[1]);
+      ctx.lineTo(tip[0] - HEAD_LEN * Math.cos(ang - Math.PI / 7), tip[1] - HEAD_LEN * Math.sin(ang - Math.PI / 7));
+      ctx.lineTo(tip[0] - HEAD_LEN * Math.cos(ang + Math.PI / 7), tip[1] - HEAD_LEN * Math.sin(ang + Math.PI / 7));
+      ctx.closePath();
+      ctx.fill();
       ctx.restore();
 
-      let arrowPt: [number, number] | null = null;
-      for (let i = 1; i < pts.length; i++) {
-        const dx = pts[i][0] - sx, dy = pts[i][1] - sy;
-        if (Math.sqrt(dx * dx + dy * dy) > sc(28, sz)) { arrowPt = pts[i]; break; }
-      }
-      if (arrowPt) {
-        const ang = Math.atan2(arrowPt[1] - sy, arrowPt[0] - sx);
-        const ad  = r + sc(10, sz);
-        ctx.save();
-        ctx.fillStyle = g.c;
-        ctx.translate(sx + Math.cos(ang) * ad, sy + Math.sin(ang) * ad);
-        ctx.rotate(ang);
-        ctx.beginPath();
-        ctx.moveTo(sc(9, sz), 0);
-        ctx.lineTo(-sc(7, sz), sc(5, sz));
-        ctx.lineTo(-sc(7, sz), -sc(5, sz));
-        ctx.closePath(); ctx.fill(); ctx.restore();
-      }
+      // Number label: placed BEFORE the stroke's true starting point, pulled
+      // straight back along the stroke's own start direction (not to the
+      // side). This gives the reading order number -> dashed line ->
+      // arrowhead along every stroke, with the same fixed gap (NUM_GAP)
+      // everywhere since it's just "start point, minus NUM_GAP along the
+      // line's own direction" — no perpendicular/sideways offset at all.
+      const dirSampleD = Math.min(total, 4);
+      const dirPt = pointAtDistance(pts, dirSampleD);
+      let sdx = dirPt[0] - pts[0][0];
+      let sdy = dirPt[1] - pts[0][1];
+      const sdlen = Math.hypot(sdx, sdy) || 1;
+      sdx /= sdlen; sdy /= sdlen;
+      const numX = pts[0][0] - sdx * NUM_GAP;
+      const numY = pts[0][1] - sdy * NUM_GAP;
 
-      const [ex, ey] = pts[pts.length - 1];
       ctx.save();
-      ctx.strokeStyle = g.c; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(ex, ey, sc(8, sz), 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#000';
+      ctx.font = `bold ${Math.round(NUM_R * 1.6)}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(g.n, numX, numY);
       ctx.restore();
     });
-  }, [getLetterDef, scalePath]);
+  }, [getLetterDef, getLetter, scalePath, scp]);
 
   const initCanvases = useCallback(() => {
     const init = (

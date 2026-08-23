@@ -1,0 +1,11 @@
+Review & Relearn is currently NOT implemented in code.
+Confirmed missing pieces:
+- Home.tsx has no `review-relearn` phase and immediately advances in `drag-assessment`.
+- AppContext.currentPhase type does not include a review phase.
+- StructuredActivity has no review mode and only supports guided/independent.
+Next edits required in:
+- client/src/contexts/AppContext.tsx
+- client/src/pages/Home.tsx
+- client/src/components/StructuredActivity.tsx
+
+
