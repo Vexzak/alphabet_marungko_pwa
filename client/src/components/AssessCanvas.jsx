@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useApp } from '@/contexts/AppContext';
+import { stopCurrentAudio, playSequence, getLetterSound } from '@/lib/audio';
 import RewardFeedback from '@/components/RewardFeedback';
 
 // ---------------------------------------------------------------------------
@@ -157,11 +158,12 @@ function antiScribblePenalty(userInk, canvasW) {
 
   const bboxW = (bbox.maxX - bbox.minX + 1) / canvasW;
   const bboxH = (bbox.maxY - bbox.minY + 1) / userInk.height;
-  const nonWhiteRatio = userInk.count / (canvasW * userInk.height);
+  const bboxArea = (bbox.maxX - bbox.minX + 1) * (bbox.maxY - bbox.minY + 1);
+  const bboxDensity = bboxArea > 0 ? userInk.count / bboxArea : 0;
 
-  // If ink fills more than 85% of both dimensions AND ink density is high
-  // it is almost certainly a scribble/blob
-  if (bboxW > 0.85 && bboxH > 0.85 && nonWhiteRatio > 0.07) {
+  // If ink fills more than 85% of both dimensions AND ink density WITHIN
+  // the bbox is high, it is almost certainly a scribble/blob
+  if (bboxW > 0.85 && bboxH > 0.85 && bboxDensity > 0.30) {
     return 0.35;
   }
 
@@ -191,7 +193,7 @@ function antiScribblePenalty(userInk, canvasW) {
   const variance = colDensities.reduce((a, b) => a + (b - mean) ** 2, 0) / COLS;
 
   // Low variance (< 0.005) with high mean density (> 0.25) means uniform blob = scribble
-  if (variance < 0.005 && mean > 0.25) {
+  if (variance < 0.004 && mean > 0.30) {
     return 0.4;
   }
 
@@ -216,7 +218,7 @@ function antiScribblePenalty(userInk, canvasW) {
   const rowMean = rowDensities.reduce((a, b) => a + b, 0) / ROWS;
   const rowVariance = rowDensities.reduce((a, b) => a + (b - rowMean) ** 2, 0) / ROWS;
 
-  if (rowVariance < 0.005 && rowMean > 0.25 && variance < 0.008) {
+  if (rowVariance < 0.004 && rowMean > 0.30 && variance < 0.007) {
     return 0.4;
   }
 
@@ -248,7 +250,7 @@ function antiScribblePenalty(userInk, canvasW) {
     const maxQ = Math.max(tl, tr, bl, br);
     // All 4 quadrants have ink AND they're similarly populated → scribble
     // Real letters have at least one near-empty quadrant (minQ/maxQ < 0.25)
-    if (minQ > 0.04 && minQ / Math.max(maxQ, 0.001) > 0.28) {
+    if (minQ > 0.05 && minQ / Math.max(maxQ, 0.001) > 0.33) {
       return 0.42;
     }
   }
@@ -1194,7 +1196,7 @@ function matchLetterShape(userInk, letterChar, width, height, opts = {}) {
   const template = buildLetterTemplateMask(letterChar, width, height, tW, tH);
   if (!template.bbox) return { score: 0, coverage: 0, precision: 0 };
 
-  const tolFactor = typeof opts.toleranceFactor === 'number' ? opts.toleranceFactor : 0.06;
+  const tolFactor = typeof opts.toleranceFactor === 'number' ? opts.toleranceFactor : 0.09;
   const tolerancePx = Math.max(6, Math.round(Math.min(tW, tH) * tolFactor));
 
   const localUser = new Uint8Array(tW * tH);
@@ -1277,7 +1279,7 @@ function matchLetterShape(userInk, letterChar, width, height, opts = {}) {
 // ---------------------------------------------------------------------------
 
 function computeCanvasScore(canvas, letterChar, opts = {}) {
-  const { requiredScore = 60, minNonWhiteRatio = 0.006 } = opts;
+  const { requiredScore = 50, minNonWhiteRatio = 0.006 } = opts;
   const { width, height } = canvas;
   const userInk = getInkMask(canvas);
   userInk.height = height; // attach for antiScribblePenalty
@@ -1287,8 +1289,9 @@ function computeCanvasScore(canvas, letterChar, opts = {}) {
     return { ok: false, score: 0, coverage: 0, precision: 0, nonWhiteRatio, bbox: null };
   }
 
-  const MAX_REASONABLE_INK_RATIO = 0.25;
-  const inkTooHeavy = nonWhiteRatio > MAX_REASONABLE_INK_RATIO;
+  const bboxDensity = inkDensity(userInk.mask, width, userInk.bbox);
+  const MAX_REASONABLE_BBOX_DENSITY = 0.42;
+  const inkTooHeavy = bboxDensity > MAX_REASONABLE_BBOX_DENSITY;
 
   // --- ANTI-SCRIBBLE GATE (applied before any letter scoring) ---
   const scribblePenalty = antiScribblePenalty(userInk, width);
@@ -1302,7 +1305,7 @@ function computeCanvasScore(canvas, letterChar, opts = {}) {
   // If feature rules exist, use them first but allow a template fallback
   if (featureScore !== null) {
     let feat = featureScore;
-    if (inkTooHeavy) feat = Math.round(feat * 0.65);
+    if (inkTooHeavy) feat = Math.round(feat * 0.8);
     feat = Math.round(feat * scribblePenalty);
 
     // If features confidently pass, accept immediately
@@ -1313,9 +1316,9 @@ function computeCanvasScore(canvas, letterChar, opts = {}) {
       method = 'feature';
     } else {
       // Fallback: try template matching with a looser tolerance
-      const tryTemplate = matchLetterShape(userInk, letterChar, width, height, { toleranceFactor: 0.12 });
+      const tryTemplate = matchLetterShape(userInk, letterChar, width, height, { toleranceFactor: 0.16 });
       let tempScore = tryTemplate.score;
-      if (inkTooHeavy) tempScore = Math.round(tempScore * 0.6);
+      if (inkTooHeavy) tempScore = Math.round(tempScore * 0.8);
       tempScore = Math.round(tempScore * scribblePenalty);
 
       // Choose the better of feature vs template
@@ -1338,7 +1341,7 @@ function computeCanvasScore(canvas, letterChar, opts = {}) {
     coverage = result.coverage;
     precision = result.precision;
 
-    if (inkTooHeavy) finalScore = Math.round(finalScore * 0.6);
+    if (inkTooHeavy) finalScore = Math.round(finalScore * 0.8);
     // Apply anti-scribble penalty
     finalScore = Math.round(finalScore * scribblePenalty);
 
@@ -1362,9 +1365,9 @@ function computeCanvasScore(canvas, letterChar, opts = {}) {
       const rivalResult = matchLetterShape(userInk, rival, width, height);
       if (rivalResult.coverage > bestRivalCoverage) bestRivalCoverage = rivalResult.coverage;
     }
-    const ambiguous = rivals.length > 0 && result.coverage < bestRivalCoverage - 0.05;
+    const ambiguous = rivals.length > 0 && result.coverage < bestRivalCoverage - 0.08;
     if (ambiguous) finalScore = Math.min(finalScore, 55);
-    if (result.precision < 0.50) finalScore = Math.min(finalScore, 45);
+    if (result.precision < 0.40) finalScore = Math.min(finalScore, 50);
   }
 
   const coverageTooLow = finalScore < requiredScore;
@@ -1387,7 +1390,17 @@ function computeCanvasScore(canvas, letterChar, opts = {}) {
 // DrawingPanel
 // ---------------------------------------------------------------------------
 function DrawingPanel({ letterChar, phase, onCorrect, onClear }) {
-  const REQUIRED_SCORE = 60;
+  const { currentDay } = useApp();
+  // Play the phase-specific instruction, then the day-appropriate letter sound.
+  useEffect(() => {
+    if (!letterChar) return;
+    // Determine instruction file
+    const instr = phase === 'uppercase' ? '/instructions/Instruction_7.mp3' : '/instructions/Instruction_8.mp3';
+    stopCurrentAudio();
+    playSequence([instr, getLetterSound(letterChar, currentDay ?? 1)]);
+    return () => { stopCurrentAudio(); };
+  }, [letterChar, phase, currentDay]);
+  const REQUIRED_SCORE = 50;
   const MIN_NON_WHITE_RATIO = 0.006;
 
   const canvasRef = useRef(null);
@@ -1494,9 +1507,29 @@ function DrawingPanel({ letterChar, phase, onCorrect, onClear }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-      <div style={{
-        width: 'min(85vw, 380px)',
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+      <style>{`
+        @media (max-width: 640px), (max-height: 500px) {
+          .assess-page {
+            justify-content: flex-start !important;
+          }
+          .assess-canvas-box {
+            width: min(85vw, 48vh, 380px) !important;
+          }
+          .assess-btn-row {
+            gap: 6px !important;
+          }
+          .assess-action-btn {
+            height: 30px !important;
+            font-size: 12px !important;
+            padding-left: 14px !important;
+            padding-right: 14px !important;
+            border-radius: 10px !important;
+          }
+        }
+      `}</style>
+      <div className="assess-canvas-box" style={{
+        width: 'min(85vw, 62vh, 380px)',
         borderRadius: 18,
         overflow: 'hidden',
         boxShadow: checkerDone
@@ -1530,33 +1563,23 @@ function DrawingPanel({ letterChar, phase, onCorrect, onClear }) {
         />
       </div>
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+      <div className="assess-btn-row" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
         <Button
           onClick={checkAnswer}
           disabled={!hasDrawn || checkerDone}
-          className={`px-8 font-fredoka font-bold rounded-2xl ${hasDrawn && !checkerDone ? 'bg-primary hover:bg-primary/90 text-white' : 'bg-secondary text-white/80'}`}
+          className={`assess-action-btn px-8 font-fredoka font-bold rounded-2xl ${hasDrawn && !checkerDone ? 'bg-primary hover:bg-primary/90 text-white' : 'bg-secondary text-white/80'}`}
           style={{ height: 'clamp(44px, 9vmin, 54px)', fontSize: 'clamp(15px, 3.5vmin, 20px)' }}
         >
-          Check ✅
+          Suriin
         </Button>
         <Button
           onClick={clearCanvas}
-          className="px-8 font-fredoka font-bold bg-secondary hover:bg-secondary/90 text-white rounded-2xl"
+          className="assess-action-btn px-8 font-fredoka font-bold bg-secondary hover:bg-secondary/90 text-white rounded-2xl"
           style={{ height: 'clamp(44px, 9vmin, 54px)', fontSize: 'clamp(15px, 3.5vmin, 20px)' }}
         >
-          Clear 🗑️
+          Burahin
         </Button>
       </div>
-
-      {lastCheck && (
-        <div className="text-center text-xs text-muted-foreground" style={{ maxWidth: 460 }}>
-          score={lastCheck.score} | cov={(lastCheck.coverage * 100).toFixed(0)}% | prec={(lastCheck.precision * 100).toFixed(0)}%
-          | ink={(lastCheck.nonWhiteRatio * 100).toFixed(2)}% | {lastCheck.method}
-          | scribble×{lastCheck.scribblePenalty?.toFixed(2)}
-          {lastCheck.inkTooHeavy ? ' ⚠ too heavy' : ''}
-          {lastCheck.coverageTooLow ? ' ⚠ score low' : ''}
-        </div>
-      )}
     </div>
   );
 }
@@ -1618,7 +1641,7 @@ export default function AssessmentCanvas({ onNext, learnerCompletedLetters = [] 
       return <CompletionCard letterChar={char} onRetry={() => setPhase(singlePhase)} onNext={onNext} />;
     }
     return (
-      <div style={containerStyle}>
+      <div className="assess-page" style={containerStyle}>
         <RewardFeedback show={showReward !== null} type={showReward === 'correct' ? 'correct' : 'incorrect'} />
         <Header letter={char} subtitle={uppercase ? `Gumuhit ng Malaking letter ${char}` : `Gumuhit ng maliit na ${char}`} />
         <DrawingPanel letterChar={char} phase={singlePhase} onCorrect={handleSingleCorrect} />
@@ -1647,10 +1670,10 @@ export default function AssessmentCanvas({ onNext, learnerCompletedLetters = [] 
           <div style={{ textAlign: 'center', marginTop: 4 }}>
             <Button
               onClick={advanceToLowercase}
-              className="px-10 font-fredoka font-bold rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white"
+              className="assess-action-btn px-10 font-fredoka font-bold rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white"
               style={{ height: 'clamp(48px, 10vmin, 58px)', fontSize: 'clamp(16px, 3.8vmin, 22px)', animation: 'pulse 1s infinite' }}
             >
-              Next → draw the small letter 🔡
+              Susunod → Iguhit ang maliit na letra
             </Button>
           </div>
         )}
@@ -1675,12 +1698,12 @@ export default function AssessmentCanvas({ onNext, learnerCompletedLetters = [] 
 const containerStyle = {
   height: '100%',
   overflow: 'hidden',
-  padding: '6px 0',
+  padding: '4px 0',
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 8,
+  gap: 6,
 };
 
 function Header({ letter, subtitle }) {
@@ -1722,10 +1745,17 @@ function CompletionCard({ letterChar, onRetry, onNext }) {
     <div style={{ ...containerStyle, gap: 20 }}>
       <div style={{ fontSize: 72, lineHeight: 1 }}>🎉</div>
       <div className="font-fredoka font-bold text-foreground text-center" style={{ fontSize: 'clamp(24px, 6vmin, 40px)' }}>
-        Great job!
+        Ang galing!
       </div>
-      <div className="text-muted-foreground text-center" style={{ fontSize: 'clamp(16px, 3.5vmin, 22px)' }}>
-        You drew <span className="font-fredoka font-bold text-primary">{letterChar}</span> perfectly!
+      <div className="text-center guide-text small" style={{ fontSize: 'clamp(16px, 3.5vmin, 22px)', color: '#0f172a' }}>
+        Perpekto ang pagkakaguhit mo ng <span
+          className="font-fredoka"
+          style={{
+            color: '#0f172a',
+            fontWeight: 900,
+            WebkitTextStroke: '0.6px #0f172a',
+          }}
+        >{letterChar}</span>!
       </div>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
         <Button
@@ -1733,7 +1763,7 @@ function CompletionCard({ letterChar, onRetry, onNext }) {
           className="px-10 font-fredoka font-bold rounded-2xl bg-secondary hover:bg-secondary/90 text-white"
           style={{ height: 54, fontSize: 18, marginTop: 8 }}
         >
-          Try again 🔄
+          Subukan muli
         </Button>
         <Button
           onClick={onNext}
@@ -1741,7 +1771,7 @@ function CompletionCard({ letterChar, onRetry, onNext }) {
           className="px-10 font-fredoka font-bold rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white"
           style={{ height: 54, fontSize: 18, marginTop: 8 }}
         >
-          Next ➡️
+          Susunod
         </Button>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useApp, getLetterAssets } from '@/contexts/AppContext';
+import { playAudio, stopCurrentAudio, getLetterSound } from '@/lib/audio';
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -88,22 +89,12 @@ let sharedAudio: HTMLAudioElement | null = null;
  * clicks never overlap. Swallows any error (missing file, autoplay block,
  * etc.) so a bad/placeholder path never crashes the game.
  */
-function playSound(src: string | undefined | null) {
-  if (!src) return;
+function playSound(letter: string | undefined | null, day: number | undefined) {
+  if (!letter) return;
   try {
-    if (!sharedAudio) {
-      sharedAudio = new Audio();
-    }
-    // Stop whatever's currently playing before starting the new clip.
-    sharedAudio.pause();
-    sharedAudio.currentTime = 0;
-    sharedAudio.src = src;
-    void sharedAudio.play().catch(() => {
-      // Missing file / blocked autoplay — fail silently, no crash.
-    });
-  } catch {
-    // Defensive: never let audio break the game.
-  }
+    stopCurrentAudio();
+    playAudio(getLetterSound(letter, day ?? 1));
+  } catch {}
 }
 
 // ─── Ghost image (hidden 1×1 for drag) ───────────────────────────────────────
@@ -131,6 +122,7 @@ function SpeakerBadge({ onPlay, size = 48 }: SpeakerBadgeProps) {
       onMouseDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
       onTouchEnd={(e) => e.stopPropagation()}
+      className="speaker-badge"
       draggable={false}
       aria-label="Pakinggan ang tunog"
       style={{
@@ -182,6 +174,7 @@ function DragCard({ item, dragging, placed, onDragStart, onDrag, onDragEnd, onPl
 
   return (
     <div
+      className="drag-card"
       draggable={!placed}
       onDragStart={(e) => {
         if (EMPTY_IMG) e.dataTransfer.setDragImage(EMPTY_IMG, 0, 0);
@@ -190,7 +183,6 @@ function DragCard({ item, dragging, placed, onDragStart, onDrag, onDragEnd, onPl
       onDrag={(e) => onDrag(item.id, e)}
       onDragEnd={onDragEnd}
       onTouchStart={handleTouchStart}
-      onTouchEnd={onDragEnd}
       style={{
         position: 'relative',
         width: 'clamp(110px, 24vw, 160px)',
@@ -263,6 +255,7 @@ function DropSlotBox({ slot, placedItem, isOver, result, onDragOver, onDrop, onR
 
   return (
     <div
+      className="drop-slot"
       onDragOver={onDragOver}
       onDrop={() => onDrop(slot.letter)}
       style={{
@@ -282,7 +275,7 @@ function DropSlotBox({ slot, placedItem, isOver, result, onDragOver, onDrop, onR
       }}
     >
       {/* Image preview area */}
-      <div style={{
+      <div className="drop-slot-image" style={{
         position: 'relative',
         width: 'clamp(100px, 22vw, 150px)',
         height: 'clamp(100px, 22vw, 150px)',
@@ -362,7 +355,7 @@ function DropSlotBox({ slot, placedItem, isOver, result, onDragOver, onDrop, onR
       )}
 
       {/* Letter label */}
-      <div style={{
+      <div className="drop-slot-letter" style={{
         fontFamily: 'Fredoka One, Fredoka, sans-serif',
         fontSize: 'clamp(26px, 6vw, 34px)',
         fontWeight: 700,
@@ -401,7 +394,7 @@ function Ghost({ item, x, y }: GhostProps) {
         pointerEvents: 'none',
         zIndex: 9998,
       }} />
-      <div style={{
+      <div className="drag-ghost" style={{
         position: 'fixed',
         left: x - 60,
         top: y - 60,
@@ -432,7 +425,7 @@ function Ghost({ item, x, y }: GhostProps) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Assessment({ onNext, assessmentLetters }: DragAssessmentProps) {
-  const { allLetters } = useApp();
+  const { allLetters, currentDay } = useApp();
 
   // The parent supplies exactly the letters in the just-completed day.
   const unlockedLetters = useMemo(() => {
@@ -475,8 +468,8 @@ export default function Assessment({ onNext, assessmentLetters }: DragAssessment
   // ── Sound ────────────────────────────────────────────────────────────────────
 
   const handlePlaySound = useCallback((item: DragItem) => {
-    playSound(item.sound);
-  }, []);
+    playSound(item.letter, currentDay);
+  }, [currentDay]);
 
   // ── Mouse / HTML5 drag ──────────────────────────────────────────────────────
 
@@ -591,7 +584,7 @@ export default function Assessment({ onNext, assessmentLetters }: DragAssessment
     setChecked(true);
     setScore((prev) => prev + correct);
     setRoundsDone((prev) => prev + 1);
-    if (correct === 3) {
+    if (correct === slots.length) {
       setTimeout(() => setShowSuccess(true), 600);
     }
   };
@@ -631,18 +624,19 @@ export default function Assessment({ onNext, assessmentLetters }: DragAssessment
           fontFamily: 'Fredoka One, Fredoka, sans-serif',
           fontSize: 'clamp(26px, 6vmin, 38px)',
           fontWeight: 700,
-          color: '#10b981',
+          color: '#1e293b',
           textAlign: 'center',
         }}>
-          Perfect Match!
+          Tamang Tugma!
         </div>
         <div style={{
           fontFamily: 'Quicksand, sans-serif',
-          fontSize: 'clamp(15px, 3.5vmin, 20px)',
-          color: '#6b7280',
+          fontSize: 'clamp(19px, 4.5vmin, 26px)',
+          fontWeight: 700,
+          color: '#1e293b',
           textAlign: 'center',
         }}>
-          You matched all 3 images correctly! 🌟
+          Tama ang pagtutugma mo sa lahat ng {slots.length} larawan!
         </div>
         {roundsDone > 1 && (
           <div style={{
@@ -664,14 +658,14 @@ export default function Assessment({ onNext, assessmentLetters }: DragAssessment
             className="px-8 font-fredoka font-bold rounded-2xl bg-secondary hover:bg-secondary/90 text-white"
             style={{ height: 52, fontSize: 18 }}
           >
-            Play Again 🔄
+            Ulitin 🔄
           </Button>
           <Button
             onClick={onNext}
             className="px-8 font-fredoka font-bold rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white"
             style={{ height: 52, fontSize: 18 }}
           >
-            Next ➡️
+            Susunod ➡️
           </Button>
         </div>
       </div>
@@ -685,7 +679,7 @@ export default function Assessment({ onNext, assessmentLetters }: DragAssessment
       {/* Floating image that follows the cursor (mouse) or finger (touch) while dragging */}
       <Ghost item={ghostItem} x={ghostPos.x} y={ghostPos.y} />
 
-      <div style={{
+      <div className="assessment-root" style={{
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
@@ -698,7 +692,7 @@ export default function Assessment({ onNext, assessmentLetters }: DragAssessment
 
         {/* Header */}
         <div style={{ textAlign: 'center' }}>
-          <h2 style={{
+          <h2 className="assessment-title" style={{
             fontFamily: 'Fredoka One, Fredoka, sans-serif',
             fontSize: 'clamp(20px, 5vmin, 30px)',
             fontWeight: 700,
@@ -711,7 +705,7 @@ export default function Assessment({ onNext, assessmentLetters }: DragAssessment
         </div>
 
         {/* Draggable image cards */}
-        <div style={{
+        <div className="assessment-cards-row" style={{
           display: 'flex',
           gap: 'clamp(10px, 3vw, 20px)',
           justifyContent: 'center',
@@ -733,21 +727,22 @@ export default function Assessment({ onNext, assessmentLetters }: DragAssessment
         </div>
 
         {/* Divider with arrow hint */}
-        <div style={{
+        <div className="assessment-divider" style={{
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          color: '#9ca3af',
-          fontSize: 13,
+          color: '#1e293b',
+          fontSize: 'clamp(16px, 3.5vmin, 22px)',
           fontFamily: 'Quicksand, sans-serif',
+          fontWeight: 700,
         }}>
           <div style={{ width: 40, height: 1, background: '#e5e7eb' }} />
-          <span>↓ i-drop dito</span>
+          <span>↓ i-lagay dito</span>
           <div style={{ width: 40, height: 1, background: '#e5e7eb' }} />
         </div>
 
         {/* Drop slots */}
-        <div style={{
+        <div className="assessment-slots-row" style={{
           display: 'flex',
           gap: 'clamp(10px, 3vw, 20px)',
           justifyContent: 'center',
@@ -788,7 +783,7 @@ export default function Assessment({ onNext, assessmentLetters }: DragAssessment
           }}>
             {Object.values(results).every((r) => r === 'correct')
               ? '🌟 Tama lahat! Napakagaling!'
-              : `${Object.values(results).filter((r) => r === 'correct').length} / 3 ang tama — kailangang tama lahat, subukan ulit!`}
+              : `${Object.values(results).filter((r) => r === 'correct').length} / ${slots.length} ang tama — kailangang tama lahat, subukan ulit!`}
           </div>
         )}
 
@@ -798,7 +793,7 @@ export default function Assessment({ onNext, assessmentLetters }: DragAssessment
             <Button
               onClick={handleCheck}
               disabled={!allPlaced}
-              className={`px-10 font-fredoka font-bold rounded-2xl ${allPlaced ? 'bg-primary hover:bg-primary/90 text-white' : 'bg-secondary text-white/70'}`}
+              className={`assessment-check-btn px-10 font-fredoka font-bold rounded-2xl ${allPlaced ? 'bg-primary hover:bg-primary/90 text-white' : 'bg-secondary text-white/70'}`}
               style={{ height: 'clamp(44px, 9vmin, 54px)', fontSize: 'clamp(15px, 3.5vmin, 20px)' }}
             >
               Suriin ✅
@@ -806,7 +801,7 @@ export default function Assessment({ onNext, assessmentLetters }: DragAssessment
           ) : (
             <Button
               onClick={handleRetry}
-              className="px-8 font-fredoka font-bold rounded-2xl bg-secondary hover:bg-secondary/90 text-white"
+              className="assessment-check-btn px-8 font-fredoka font-bold rounded-2xl bg-secondary hover:bg-secondary/90 text-white"
               style={{ height: 'clamp(44px, 9vmin, 54px)', fontSize: 'clamp(15px, 3.5vmin, 20px)' }}
             >
               Ulit 🔄
@@ -836,6 +831,20 @@ export default function Assessment({ onNext, assessmentLetters }: DragAssessment
         @keyframes floatBob {
           from { transform: translateY(0px) rotate(-3deg) scale(1.05); }
           to   { transform: translateY(-7px) rotate(-3deg) scale(1.05); }
+        }
+        @media (max-height: 500px) {
+          .assessment-root { gap: 8px !important; padding: 5px 9px !important; }
+          .assessment-title { font-size: 17px !important; }
+          .assessment-cards-row { gap: 11px !important; min-height: 84px !important; }
+          .drag-card { width: 84px !important; height: 84px !important; border-radius: 14px !important; }
+          .assessment-divider { font-size: 11px !important; gap: 5px !important; }
+          .assessment-slots-row { gap: 11px !important; }
+          .drop-slot { width: 94px !important; min-height: 126px !important; border-radius: 16px !important; padding-bottom: 5px !important; gap: 5px !important; }
+          .drop-slot-image { width: 68px !important; height: 68px !important; border-radius: 11px !important; }
+          .drop-slot-letter { font-size: 19px !important; }
+          .assessment-check-btn { height: 38px !important; font-size: 13px !important; padding-left: 20px !important; padding-right: 20px !important; }
+          .speaker-badge { width: 29px !important; height: 29px !important; bottom: -7px !important; right: -7px !important; }
+          .drag-ghost { width: 84px !important; height: 84px !important; border-radius: 14px !important; }
         }
       `}</style>
     </>

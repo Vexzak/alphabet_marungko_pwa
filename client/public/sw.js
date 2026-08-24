@@ -1,12 +1,13 @@
-const CACHE_NAME = 'marungko-phonics-v3';
-const ASSETS_TO_CACHE = [
+const CACHE_NAME = 'marungko-phonics-v4'; // bump this number every time you deploy new assets
+const CORE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
   '/icon.png',
   '/small_icon.png',
   '/land_bg.png',
-  '/intro_bg.jpeg',
+  '/intro_bg.png',
+  '/intro_bgg.jpeg',
   '/trace_bg.jpeg',
   '/acc_button.png',
   '/play_button.png',
@@ -24,69 +25,58 @@ const ASSETS_TO_CACHE = [
   '/Panuto_2.mp3',
   '/Panuto_3.mp3',
   '/Panuto_4.mp3',
-  '/sounds/M_malungay.mp3',
-  '/sounds/M_mango.mp3',
-  '/sounds/M_manok.mp3',
-  '/sounds/M_medyas.mp3',
-  '/sounds/M_motor.mp3',
-  '/letters/A-agila.png',
-  '/letters/A-aklat.png',
-  '/letters/A-apoy.png',
-  '/letters/A-araw.png',
-  '/letters/A-aso.png',
-  '/letters/B-bahay.png',
-  '/letters/B-baso.png',
-  '/letters/B-bato.png',
-  '/letters/B-bola.png',
-  '/letters/B-bus.png',
-  '/letters/E-elepante.png',
-  '/letters/E-empanada.png',
-  '/letters/E-ensaymada.png',
-  '/letters/E-eroplano.png',
-  '/letters/E-espageti.png',
-  '/letters/I-ibon.png',
-  '/letters/I-ilaw.png',
-  '/letters/I-isda.png',
-  '/letters/I-isla.png',
-  '/letters/I-itlog.png',
-  '/letters/M-malungay.png',
-  '/letters/M-mango.png',
-  '/letters/M-manok.png',
-  '/letters/M-mapa.png',
-  '/letters/M-medyas.png',
-  '/letters/M-motor.png',
-  '/letters/M-mundo.png',
-  '/letters/O-okra.png',
-  '/letters/O-oktopus.png',
-  '/letters/O-orange.png',
-  '/letters/O-orasan.png',
-  '/letters/O-oso.png',
-  '/letters/S-saging.png',
-  '/letters/S-sandok.png',
-  '/letters/S-sapatos.png',
-  '/letters/S-sarangola.png',
-  '/letters/S-susi.png',
-  '/letters/T-talong.png',
-  '/letters/T-telepono.png',
-  '/letters/T-tigre.png',
-  '/letters/T-tinapay.png',
-  '/letters/T-tupa.png',
-  '/letters/U-ube.png',
-  '/letters/U-unan.png',
-  '/letters/U-unggoy.png',
-  '/letters/U-upuan.png',
-  '/letters/U-uwak.png',
 ];
+
+// Send a message to every open tab of the app
+function broadcast(message) {
+  self.clients.matchAll({ includeUncontrolled: true }).then((clients) => {
+    clients.forEach((client) => client.postMessage(message));
+  });
+}
+
+// Cache a big list of files, 8 at a time, reporting progress after each one
+async function cacheAllWithProgress(cache, urls) {
+  const total = urls.length;
+  let done = 0;
+  broadcast({ type: 'CACHE_PROGRESS', done, total });
+
+  const CONCURRENCY = 8;
+  let index = 0;
+
+  async function worker() {
+    while (index < urls.length) {
+      const url = urls[index++];
+      try {
+        const res = await fetch(url, { cache: 'no-cache' });
+        if (res.ok) await cache.put(url, res);
+      } catch (err) {
+        console.warn('Failed to cache:', url, err);
+      }
+      done++;
+      broadcast({ type: 'CACHE_PROGRESS', done, total });
+    }
+  }
+
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  broadcast({ type: 'CACHE_COMPLETE', total });
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return Promise.allSettled(
-        ASSETS_TO_CACHE.map(url =>
-          cache.add(url).catch(err => console.warn('Failed to cache:', url, err))
-        )
-      );
-    })
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+
+      let manifestAssets = [];
+      try {
+        const res = await fetch('/asset-manifest.json', { cache: 'no-cache' });
+        if (res.ok) manifestAssets = await res.json();
+      } catch (err) {
+        console.warn('Could not load asset manifest', err);
+      }
+
+      const allAssets = [...new Set([...CORE_ASSETS, ...manifestAssets])];
+      await cacheAllWithProgress(cache, allAssets);
+    })()
   );
   self.skipWaiting();
 });
@@ -110,9 +100,15 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   if (!event.request.url.startsWith(self.location.origin)) return;
 
-  // For JS/CSS assets - cache first, then network
   const url = new URL(event.request.url);
-  const isAsset = url.pathname.startsWith('/assets/');
+  const isAsset =
+    url.pathname.startsWith('/assets/') ||
+    url.pathname.startsWith('/allimages/') ||
+    url.pathname.startsWith('/letters/') ||
+    url.pathname.startsWith('/letter/') ||
+    url.pathname.startsWith('/letter_sounds/') ||
+    url.pathname.startsWith('/instructions/') ||
+    url.pathname.startsWith('/sounds/');
 
   if (isAsset) {
     event.respondWith(
@@ -130,7 +126,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // For everything else - network first, fallback to cache
   event.respondWith(
     fetch(event.request)
       .then((response) => {

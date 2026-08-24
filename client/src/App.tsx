@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AppProvider } from "./contexts/AppContext";
 import Home from "./pages/Home";
+import OfflineDownloadBadge from "./components/OfflineDownloadBadge";
 
 
 function Router() {
@@ -34,6 +35,7 @@ function App() {
         <AppProvider>
           <TooltipProvider>
             <Toaster />
+            <OfflineDownloadBadge />
             <Router />
           </TooltipProvider>
         </AppProvider>

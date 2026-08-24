@@ -4,6 +4,7 @@ import type { LetterAsset } from '@/contexts/AppContext';
 import { LETTER_DAY_GROUPS } from '@/lib/letterDays';
 import RewardFeedback from '@/components/RewardFeedback';
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { stopCurrentAudio, playAudio, playSequence, getLetterSound } from '@/lib/audio';
 
 interface StructuredActivityProps {
   onNext: () => void;
@@ -89,7 +90,7 @@ function CircleLetterCard({
     ctx.stroke();
   }, []);
 
-  // ✨ STAR SPARKLE EFFECT ✨
+  // ✨ FAIRY DUST EFFECT ✨
   const spawnStars = useCallback((
     canvasEl: HTMLCanvasElement,
     x: number,
@@ -103,12 +104,14 @@ function CircleLetterCard({
     const hues = [50, 55, 200, 280, 320];
 
     for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const vel = speed * 0.5 + Math.random() * speed;
-      const vx = Math.cos(angle) * vel;
-      const vy = Math.sin(angle) * vel;
-      const s = size * (0.5 + Math.random() * 0.8);
-      const duration = lifeMs * (0.6 + Math.random() * 0.7);
+      // Fairy dust: gentle sideways drift + slow downward fall (gravity), with a light sway
+      const vx = (Math.random() - 0.5) * (speed * 0.3);   // slight horizontal drift
+      const vy = speed * 0.3 + Math.random() * (speed * 0.3); // slow initial downward speed
+      const gravity = speed * 0.6 + Math.random() * (speed * 0.4); // accelerates the fall a bit
+      const swayAmp = 6 + Math.random() * 10;   // side-to-side sway amplitude
+      const swayFreq = 2 + Math.random() * 2;   // sway speed
+      const s = size * (0.4 + Math.random() * 0.5);
+      const duration = lifeMs * (1.2 + Math.random() * 0.6);
       const hue = hues[Math.floor(Math.random() * hues.length)];
 
       const star = document.createElement('canvas');
@@ -137,7 +140,7 @@ function CircleLetterCard({
         sc.lineTo(ix, iy);
       }
       sc.closePath();
-      sc.fillStyle = `hsl(${hue}, 100%, 65%)`;
+      sc.fillStyle = `hsl(${hue}, 100%, 75%)`;
       sc.fill();
       sc.restore();
 
@@ -147,17 +150,21 @@ function CircleLetterCard({
       const initLeft = rect.left + x - s * 2;
       const initTop = rect.top + y - s * 2;
       let rot = Math.random() * 360;
-      const rotSpeed = (Math.random() - 0.5) * 720;
+      const rotSpeed = (Math.random() - 0.5) * 180;
 
       const tick = (now: number) => {
         const elapsed = now - startTime;
         const t = Math.min(elapsed / duration, 1);
-        const ease = 1 - t * t;
-        star.style.left = `${initLeft + vx * elapsed * 0.001 * 60}px`;
-        star.style.top = `${initTop + vy * elapsed * 0.001 * 60}px`;
+        const secs = elapsed * 0.001;
+        const fallY = vy * secs + 0.5 * gravity * secs * secs;
+        const swayX = vx * secs + Math.sin(secs * swayFreq * Math.PI) * swayAmp;
+        star.style.left = `${initLeft + swayX}px`;
+        star.style.top = `${initTop + fallY}px`;
         rot += rotSpeed / 60;
-        star.style.transform = `rotate(${rot}deg) scale(${1 - t * 0.4})`;
-        star.style.opacity = String(ease);
+        // Twinkle: fade in quickly, hold, then fade out near the end of the fall
+        const twinkle = t < 0.15 ? t / 0.15 : t > 0.7 ? 1 - (t - 0.7) / 0.3 : 1;
+        star.style.transform = `rotate(${rot}deg) scale(${0.6 + twinkle * 0.5})`;
+        star.style.opacity = String(Math.max(0, twinkle));
         if (t < 1) requestAnimationFrame(tick);
         else star.remove();
       };
@@ -171,7 +178,7 @@ function CircleLetterCard({
     drawing.current = true;
     const pos = getPos(e, canvasRef.current!);
     points.current = [pos];
-    spawnStars(canvasRef.current!, pos.x, pos.y, 12, 10, 90, 700);
+    spawnStars(canvasRef.current!, pos.x, pos.y, 4, 8, 60, 700);
   };
 
   const handleMove = (e: React.MouseEvent | React.TouchEvent) => {
@@ -180,11 +187,9 @@ function CircleLetterCard({
     const pos = getPos(e, canvasRef.current!);
     points.current.push(pos);
     drawPath(points.current, '#6366f1');
-    if (Math.random() < 0.35) {
-      spawnStars(canvasRef.current!, pos.x, pos.y, 2, 6, 45, 450);
-    }
+    spawnStars(canvasRef.current!, pos.x, pos.y, 1, 6, 45, 450);
   };
-
+  
   const handleEnd = (e: React.MouseEvent | React.TouchEvent) => {
     if (!drawing.current || disabled || circled) return;
     e.preventDefault();
@@ -318,76 +323,11 @@ function LetterSidebar({ uppercase, lowercase }: { uppercase: string; lowercase:
 }
 
 export default function StructuredActivity({ onNext, mode = 'guided', learnerCompletedLetters }: StructuredActivityProps) {
-  const { currentLetter, allLetters, updateLetterProgress, consumeNextAsset } = useApp();
-
-  const sfxRef     = useRef<HTMLAudioElement | null>(null);
-  const panutoRef  = useRef<HTMLAudioElement | null>(null);
-  const panuto3Ref = useRef<HTMLAudioElement | null>(null);
-  const panuto4Ref = useRef<HTMLAudioElement | null>(null);
-
-  const stopSfx = useCallback(() => {
-    if (sfxRef.current) { sfxRef.current.pause(); sfxRef.current.currentTime = 0; sfxRef.current = null; }
-  }, []);
-
-  const stopPanuto = useCallback(() => {
-    if (panutoRef.current) { panutoRef.current.pause(); panutoRef.current.currentTime = 0; panutoRef.current = null; }
-  }, []);
-
-  const stopPanuto3 = useCallback(() => {
-    if (panuto3Ref.current) { panuto3Ref.current.pause(); panuto3Ref.current.currentTime = 0; panuto3Ref.current = null; }
-  }, []);
-
-  const stopPanuto4 = useCallback(() => {
-    if (panuto4Ref.current) { panuto4Ref.current.pause(); panuto4Ref.current.currentTime = 0; panuto4Ref.current = null; }
-    setIsPanuto4Playing(false);
-  }, []);
-
-  const playSound = useCallback((src: string, onEnded?: () => void) => {
-    stopSfx();
-    const audio = new Audio(src);
-    sfxRef.current = audio;
-    audio.onended = () => {
-      if (sfxRef.current === audio) {
-        sfxRef.current = null;
-      }
-      onEnded?.();
-    };
-    audio.play().catch((err) => {
-      console.error('Error playing sound:', err);
-      if (sfxRef.current === audio) {
-        sfxRef.current = null;
-      }
-      onEnded?.();
-    });
-  }, [stopSfx]);
-
-  const playPanuto = useCallback(() => {
-    stopPanuto();
-    const audio = new Audio('/Panuto_2.mp3');
-    panutoRef.current = audio;
-    audio.play().catch((err) => console.error('Error playing Panuto_2:', err));
-  }, [stopPanuto]);
-
-  const playPanuto3 = useCallback(() => {
-    stopPanuto3();
-    const audio = new Audio('/Panuto_3.mp3');
-    panuto3Ref.current = audio;
-    audio.play().catch((err) => console.error('Error playing Panuto_3:', err));
-  }, [stopPanuto3]);
+  const { currentLetter, allLetters, updateLetterProgress, consumeNextAsset, currentDay } = useApp();
 
   const [isPanuto4Playing, setIsPanuto4Playing] = useState(false);
-  const playPanuto4 = useCallback(() => {
-    stopPanuto4();
-    const audio = new Audio('/Panuto_4.mp3');
-    panuto4Ref.current = audio;
-    setIsPanuto4Playing(true);
-    audio.onended = () => setIsPanuto4Playing(false);
-    audio.play().catch((err) => { console.error('Error playing Panuto_4:', err); setIsPanuto4Playing(false); });
-  }, [stopPanuto4]);
 
-  useEffect(() => {
-    return () => { stopSfx(); stopPanuto(); stopPanuto3(); stopPanuto4(); };
-  }, []);
+  useEffect(() => { return () => { stopCurrentAudio(); }; }, []);
 
   const getAvailableLetters = useCallback(() => {
     let availableLetters = LETTER_PROGRESSION[0];
@@ -421,6 +361,29 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
   const [roundKey, setRoundKey] = useState(0);
   const [round, setRound] = useState(1);
 
+  // Centralized audio helpers — defined after state hooks so setters are available
+  const stopSfx = useCallback(() => { stopCurrentAudio(); setShowReplayBtn(true); setIsPanuto4Playing(false); }, [setShowReplayBtn, setIsPanuto4Playing]);
+
+  const playPanuto = useCallback(() => {
+    stopCurrentAudio();
+    setIsPanuto4Playing(true);
+    playAudio('/Panuto_4.mp3', () => {
+      setIsPanuto4Playing(false);
+      setShowReplayBtn(true);
+    });
+  }, [setShowReplayBtn, setIsPanuto4Playing]);
+
+  const playPanuto3 = useCallback(() => {
+    stopCurrentAudio();
+    setShowReplayBtn(false);
+    playAudio('/Panuto_3.mp3', () => {
+      setShowReplayBtn(true);
+    });
+  }, [setShowReplayBtn]);
+
+  const stopPanuto4 = useCallback(() => { stopCurrentAudio(); setIsPanuto4Playing(false); setShowReplayBtn(true); }, [setShowReplayBtn, setIsPanuto4Playing]);
+  const stopPanuto3 = useCallback(() => { stopCurrentAudio(); setShowReplayBtn(true); }, [setShowReplayBtn]);
+
   const getOptions = useCallback(() => {
     const availableLetters = getAvailableLetters();
     const availableLetterObjects = allLetters.filter(l =>
@@ -453,25 +416,33 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
       setShowReplayBtn(false);
       setChoicesReady(false);
       setOptions(getOptions());
-      if (mode === 'guided') playPanuto();
-      if (mode === 'independent') playPanuto3();
+      // Guided: play only Instruction_2 on entry. Do NOT auto-play letter or Instruction_3 here.
+      if (mode === 'guided') {
+        const instr = currentDay && currentDay <= 10 ? '/instructions/Instruction_2.mp3' : '/instructions/Instruction_2_day11-20.mp3';
+        stopCurrentAudio();
+        setShowReplayBtn(false);
+        playAudio(instr, () => {
+          setShowReplayBtn(true);
+        });
+      }
+
+      // Independent (look & circle): play only Instruction_6 on entry. Do NOT auto-play the letter sound.
+      if (mode === 'independent') {
+        stopCurrentAudio();
+        setShowReplayBtn(false);
+        playAudio('/instructions/Instruction_6.mp3', () => {
+          setShowReplayBtn(true);
+        });
+      }
     }
-  }, [currentLetter?.letter]);
+  }, [currentLetter?.letter, mode, currentDay]);
 
   useEffect(() => {
     if (choicesUnlocked && mode === 'guided') {
-      stopSfx();
-      stopPanuto4();
+      // When letter choices appear, play ONLY Instruction_3.mp3 and then stop.
+      stopCurrentAudio();
       setShowReplayBtn(false);
-      const audio = new Audio('/Panuto_4.mp3');
-      panuto4Ref.current = audio;
-      setIsPanuto4Playing(true);
-      audio.onended = () => {
-        setIsPanuto4Playing(false);
-        setShowReplayBtn(true);
-      };
-      audio.play().catch(() => {
-        setIsPanuto4Playing(false);
+      playAudio('/instructions/Instruction_3.mp3', () => {
         setShowReplayBtn(true);
       });
     }
@@ -479,7 +450,7 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
 
   const handlePlaySound = () => {
     if (!currentAsset) return;
-    stopPanuto();
+    stopCurrentAudio();
     setIsPressed(true);
     setTimeout(() => setIsPressed(false), 150);
     setIsShaking(true);
@@ -488,28 +459,13 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
     if (next > TOTAL_ROUNDS) return;
     setClickCount(next);
 
-    let assetToPlay = currentAsset;
-    if (next === 1) {
-      setLastAsset(currentAsset);
-    } else {
-      const nextAsset = consumeNextAsset();
-      if (nextAsset) {
-        setCurrentAsset(nextAsset);
-        setLastAsset(nextAsset);
-        assetToPlay = nextAsset;
-      }
-    }
-
-    playSound(assetToPlay.sound, () => {
-      if (next >= TOTAL_ROUNDS) {
-        setChoicesReady(true);
-      }
-    });
+    // For new behavior, play the day-appropriate LETTER sound instead of image-word audio
+    setLastAsset(currentAsset);
+    playAudio(getLetterSound(currentLetter?.letter ?? 'A', currentDay ?? 1));
+    if (next >= TOTAL_ROUNDS) setChoicesReady(true);
   };
 
-  const handleReplayLastSound = () => {
-    if (lastAsset) playSound(lastAsset.sound);
-  };
+  const handleReplayLastSound = () => { if (currentLetter) playAudio(getLetterSound(currentLetter.letter, currentDay ?? 1)); };
 
   const handleSelectAnswer = (answer: string) => {
     if (showFeedback) return;
@@ -603,6 +559,11 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
   return (
     <>
       <style>{`
+        @media (max-width: 640px), (max-height: 500px) {
+          .activity-image-box {
+            width: min(92vw, 60vh, 600px) !important;
+          }
+        }
         @keyframes cardEntry {
           0%   { transform: scale(0.5) rotate(-15deg); opacity: 0; }
           40%  { transform: scale(1.15) rotate(6deg);  opacity: 1; }
@@ -698,7 +659,7 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
         // ── Look & Circle mode ─────────────────────────────────────────────────
         <div style={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div className="text-center flex-shrink-0" style={{ paddingTop: 8, paddingBottom: 8 }}>
-            <h2 className="font-fredoka font-bold text-foreground" style={{ fontSize: 'clamp(16px, 4vmin, 30px)', lineHeight: 1.15 }}>Panuto: Tingnan ang larawan at bilugan kung anong titik ang may unang tunog sa larawang ito.</h2>
+            <h2 className="font-fredoka font-bold text-foreground guide-text" style={{ fontSize: 'clamp(16px, 4vmin, 30px)', lineHeight: 1.15 }}>Panuto: Tingnan ang larawan at bilugan kung anong titik ang may unang tunog sa larawang ito.</h2>
           </div>
 
           <div style={{
@@ -706,7 +667,7 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
             paddingLeft: 'clamp(8px, 5vw, 48px)', paddingRight: 'clamp(8px, 5vw, 48px)', paddingBottom: 'clamp(6px, 2vh, 12px)',
           }}>
             {currentAsset && (
-              <div style={{
+              <div className="activity-image-box" style={{
                 width: '100%', maxWidth: 600, height: '100%', maxHeight: '48dvh', borderRadius: 28, overflow: 'hidden',
                 background: 'rgba(255,255,255,0.85)', boxShadow: '0 8px 32px rgba(0,0,0,0.13)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -742,7 +703,7 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
         // ── Guided mode: Listen & Repeat ──────────────────────────────────────
         <div style={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(6px, 2vh, 12px)', overflow: 'hidden' }}>
           <div className="text-center flex-shrink-0">
-            <h2 className="font-fredoka font-bold text-foreground mb-2" style={{ fontSize: 'clamp(16px, 4vmin, 30px)', lineHeight: 1.15 }}>Pakinggan nang mabuti ang tunog ng letra at bilugan kung anong letra ito. </h2>
+            <h2 className="font-fredoka font-bold text-foreground mb-2 guide-text" style={{ fontSize: 'clamp(16px, 4vmin, 30px)', lineHeight: 1.15 }}>Pakinggan nang mabuti ang tunog ng letra at bilugan kung anong letra ito. </h2>
             {!choicesUnlocked && progressDots()}
           </div>
 
@@ -765,7 +726,7 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
 
             {/* Image — always centered */}
             {currentAsset && (
-              <div style={{
+              <div className="activity-image-box" style={{
                 width: '100%',
                 maxWidth: 480,
                 maxHeight: '48dvh',
@@ -797,7 +758,7 @@ export default function StructuredActivity({ onNext, mode = 'guided', learnerCom
                 className={`px-8 font-fredoka font-bold bg-secondary hover:bg-secondary/90 text-white rounded-2xl shadow-lg ${isPressed ? 'btn-press' : ''} ${isPanuto4Playing ? 'opacity-50 cursor-not-allowed' : ''}`}
                 style={{ height: 'clamp(44px, 9vmin, 64px)', fontSize: 'clamp(15px, 3.5vmin, 20px)' }}
               >
-                 Pakinggan nag tunog
+                 Pakinggan ang tunog
               </Button>
             </div>
           )}

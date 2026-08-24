@@ -1,4 +1,5 @@
 import { useApp } from '@/contexts/AppContext';
+import { stopCurrentAudio, playAudio } from '@/lib/audio';
 import { useRef, useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import LetterInstruction from '@/components/LetterInstruction';
@@ -20,17 +21,20 @@ function calculateWeekDay(completedLetters: string[]): { week: number; day: numb
   if (completedLetters.length === 0) {
     return { week: 0, day: 0, label: 'Hindi pa nagsimula' };
   }
-  for (let i = LETTER_DAY_GROUPS.length - 1; i >= 0; i--) {
-    const allCompleted = LETTER_DAY_GROUPS.slice(0, i + 1).flat().every(letter => completedLetters.includes(letter));
-    if (allCompleted) {
-      return {
-        week: 1,
-        day: i + 1,
-        label: `Day ${i + 1}`
-      };
-    }
+  // Find the first letter (in curriculum order) the learner hasn't finished
+  // yet — that letter's day IS the day currently being worked on. This
+  // matches the orange "next to study" tile on the letter-selection screen.
+  const nextLetter = MARUNGKO_ORDER.find((letter) => !completedLetters.includes(letter));
+
+  // No incomplete letter left — every letter (through Z) is done, so the
+  // learner has graduated past the last practice day into the assessment day.
+  if (!nextLetter) {
+    const dayNumber = LETTER_DAY_GROUPS.length + 1;
+    return { week: 1, day: dayNumber, label: `Day ${dayNumber}` };
   }
-  return { week: 0, day: 0, label: 'Nagsisimula pa...' };
+
+  const dayNumber = getDayIndex(nextLetter) + 1;
+  return { week: 1, day: dayNumber, label: `Day ${dayNumber}` };
 }
 
 // ── Lock/unlock helper ────────────────────────────────────────────────────────
@@ -53,6 +57,10 @@ interface Learner {
   currentPhase?: string;
   weekDay?: { week: number; day: number; label: string };
   unlockedLetters?: boolean;
+  currentDay?: number;
+  day10AssessmentCompletedLetters?: string[];
+  day20AssessmentCompletedLetters?: string[];
+  dayPracticeCompletedLetters?: Record<string, string[]>;
 }
 
 const STORAGE_KEY = 'alpabetitik_learners';
@@ -64,7 +72,11 @@ function loadLearners(): Learner[] {
     return learners.map((l: Learner) => ({
       ...l,
       completedLetters: l.completedLetters || [],
-      weekDay: calculateWeekDay(l.completedLetters || [])
+      weekDay: calculateWeekDay(l.completedLetters || []),
+      currentDay: l.currentDay ?? ((l.completedLetters || []).length >= MARUNGKO_ORDER.length ? 10 : Math.max(1, calculateWeekDay(l.completedLetters || []).day || 1)),
+      day10AssessmentCompletedLetters: l.day10AssessmentCompletedLetters || [],
+      day20AssessmentCompletedLetters: l.day20AssessmentCompletedLetters || [],
+      dayPracticeCompletedLetters: l.dayPracticeCompletedLetters || {},
     }));
   } catch {
     return [];
@@ -84,6 +96,10 @@ function createLearner(name: string): Learner {
     overallProgress: 0,
     weekDay: { week: 0, day: 0, label: 'Hindi pa nagsimula' },
     unlockedLetters: false,
+    currentDay: 1,
+    day10AssessmentCompletedLetters: [],
+    day20AssessmentCompletedLetters: [],
+    dayPracticeCompletedLetters: {},
   };
 }
 
@@ -156,7 +172,7 @@ const pressSmall = (shadow: string) => ({
 // ── Component ────────────────────────────────────────────────────────────────
 export default function Home() {
   const [, setLocation] = useLocation();
-  const { currentLetter, setCurrentLetter, currentPhase, setCurrentPhase, allLetters } = useApp();
+  const { currentLetter, setCurrentLetter, currentPhase, setCurrentPhase, currentDay, setCurrentDay, allLetters } = useApp();
 
   const [showLanding, setShowLanding] = useState(true);
   const [showLetterPicker, setShowLetterPicker] = useState(false);
@@ -188,9 +204,26 @@ export default function Home() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
+  const [showDay20CompleteModal, setShowDay20CompleteModal] = useState(false);
+  const [showDay10CompleteModal, setShowDay10CompleteModal] = useState(false);
 
-  const allLettersUnlocked = activeLearner?.unlockedLetters === true;
-  const isAdminUnlocked = allLettersUnlocked;
+  // Days 11-19 return to normal gameplay with ALL letters unlocked.
+  // Day 10 and Day 20 are assessment-only days and should not auto-unlock letters.
+  const allLettersUnlocked = activeLearner?.unlockedLetters === true || (currentDay >= 11 && currentDay <= 19);
+  const isAdminUnlocked = activeLearner?.unlockedLetters === true;
+  const isAssessmentDay = currentDay === 10 || currentDay === 20;
+
+  // Tile label logic:
+  // - Day 10 or Day 20 (assessment days): every tile shows the current day, since all 26 letters are being assessed together.
+  // - Day 11-19 (replay days): each letter's original day (1-9) is shifted by +10, so Day 1's letters (m,s,a) show "Day 11", Day 2's letters (i,o,b) show "Day 12", etc.
+  // - Day 1-9 (first pass): each tile shows its own original day, unchanged.
+  const getTileDayLabel = (letterKey: string) => {
+    if (isAssessmentDay) return `Day ${currentDay}`;
+    if (currentDay >= 11 && currentDay <= 19) return `Day ${getDayIndex(letterKey) + 11}`;
+    return `Day ${getDayIndex(letterKey) + 1}`;
+  };
+
+  useEffect(() => { setCurrentDay(activeLearner?.currentDay ?? 1); }, [activeLearner?.id, activeLearner?.currentDay, setCurrentDay]);
 
   const [showAdminGamePicker, setShowAdminGamePicker] = useState(false);
   const [adminGameLetterKey, setAdminGameLetterKey] = useState<string | null>(null);
@@ -204,6 +237,15 @@ export default function Home() {
   useEffect(() => {
     saveLearners(learners);
   }, [learners]);
+
+  // Play the short anticipatory instruction when entering the intro phase
+  useEffect(() => {
+    if (currentPhase === 'anticipatory') {
+      stopCurrentAudio();
+      playAudio('/instructions/Instruction_10.mp3');
+    }
+    return () => { /* no-op */ };
+  }, [currentPhase]);
 
   useEffect(() => {
     tingAudioRef.current = new Audio('/ting.mp3');
@@ -230,16 +272,25 @@ export default function Home() {
 
     // Snapshot of completedLetters BEFORE this letter
     const completedBefore = activeLearner.completedLetters;
+    const isReplayDay = currentDay >= 11 && currentDay <= 19;
+    const dayKey = String(currentDay);
 
     const updatedLearners = learners.map(l => {
       if (l.id === activeLearner.id) {
         const newCompletedLetters = Array.from(new Set([...l.completedLetters, letterKey.toLowerCase()]));
         const weekDay = calculateWeekDay(newCompletedLetters);
+        const newDayPractice = isReplayDay
+          ? {
+              ...(l.dayPracticeCompletedLetters || {}),
+              [dayKey]: Array.from(new Set([...(l.dayPracticeCompletedLetters?.[dayKey] || []), letterKey.toLowerCase()])),
+            }
+          : (l.dayPracticeCompletedLetters || {});
         const updated = {
           ...l,
           completedLetters: newCompletedLetters,
           overallProgress: Math.round((newCompletedLetters.length / MARUNGKO_ORDER.length) * 100),
           weekDay,
+          dayPracticeCompletedLetters: newDayPractice,
         };
         setActiveLearner(updated);
         return updated;
@@ -334,6 +385,7 @@ export default function Home() {
 
   // ── Navigation ──
   const handleGoHome = () => {
+    stopCurrentAudio();
     stopSfx(chooseAudioRef);
     stopSfx(introAudioRef);
     introPlayedRef.current = false;
@@ -345,6 +397,13 @@ export default function Home() {
   };
 
   const handleSelectLetter = (letter: (typeof allLetters)[number]) => {
+    stopCurrentAudio();
+    if (isAssessmentDay) {
+      setCurrentLetter(letter);
+      setCurrentPhase('independent');
+      setShowLetterPicker(false);
+      return;
+    }
     if (isAdminUnlocked) {
       if (letter?.letter) {
         setCurrentLetter(letter);
@@ -378,6 +437,7 @@ export default function Home() {
   };
 
   const handleMarungkoStart = (letter: (typeof allLetters)[number]) => {
+    stopCurrentAudio();
     if (!isLetterUnlocked(letter.letter, activeLearner?.completedLetters ?? [], allLettersUnlocked)) return;
     if (isAdminUnlocked) {
       setAdminGameLetterKey(letter.letter);
@@ -386,7 +446,7 @@ export default function Home() {
       return;
     }
     setCurrentLetter(letter);
-    setCurrentPhase('instruction');
+    setCurrentPhase(isAssessmentDay ? 'independent' : 'instruction');
     setShowMarungkoStartPicker(false);
   };
 
@@ -397,6 +457,7 @@ export default function Home() {
 
   // ── Back navigation ──────────────────────────────────────────────────────
   const handleBack = () => {
+    stopCurrentAudio();
     switch (currentPhase) {
       case 'review-relearn':  setCurrentPhase('drag-assessment'); return;
       case 'drag-assessment': setCurrentPhase('assessment');      return;
@@ -424,10 +485,56 @@ export default function Home() {
   };
 
   // ── What happens after drag-assessment completes ─────────────────────────
+  const completePracticeLetter = (letterKey: string) => {
+    if (!activeLearner) return;
+    const key = String(currentDay);
+    const completed = activeLearner.dayPracticeCompletedLetters?.[key] || [];
+    const nextCompleted = Array.from(new Set([...completed, letterKey.toLowerCase()]));
+    const done = nextCompleted.length === MARUNGKO_ORDER.length;
+    const nextDay = done ? Math.min(currentDay + 1, 20) : currentDay;
+    const updated = { ...activeLearner, currentDay: nextDay, dayPracticeCompletedLetters: { ...(activeLearner.dayPracticeCompletedLetters || {}), [key]: nextCompleted } };
+    setActiveLearner(updated); setLearners(learners.map(l => l.id === updated.id ? updated : l)); setCurrentDay(nextDay);
+    setCurrentLetter(done ? allLetters[0] : allLetters.find(l => !nextCompleted.includes(l.letter)) || allLetters[0]);
+    setCurrentPhase('anticipatory');
+  };
+
+  const completeAssessmentLetter = (letterKey: string) => {
+    if (!activeLearner || !isAssessmentDay) return;
+    const field = currentDay === 10 ? 'day10AssessmentCompletedLetters' : 'day20AssessmentCompletedLetters';
+    const completed = activeLearner[field] || [];
+    const nextCompleted = Array.from(new Set([...completed, letterKey.toLowerCase()]));
+    const done = MARUNGKO_ORDER.every((l) => nextCompleted.includes(l));
+    const nextDay = currentDay === 10 && done ? 11 : currentDay;
+    console.log('[DAY10→11 DEBUG]', {
+      letterKey, nextCompletedCount: nextCompleted.length,
+      need: MARUNGKO_ORDER.length, missing: MARUNGKO_ORDER.filter(l => !nextCompleted.includes(l)),
+      done, currentDay, nextDay,
+    });
+    const updated = { ...activeLearner, currentDay: nextDay, [field]: nextCompleted };
+    setActiveLearner(updated); setLearners(learners.map(l => l.id === updated.id ? updated : l)); setCurrentDay(nextDay);
+    if (currentDay === 20 && done) { setShowDay20CompleteModal(true); return; }
+    if (currentDay === 10 && done) { setShowDay10CompleteModal(true); return; }
+    setCurrentLetter(allLetters.find(l => !nextCompleted.includes(l.letter)) || allLetters[0]);
+    // Always show the anticipatory intro for the next letter, whether we're
+    // still mid-Day-10/20 or have just advanced to Day 11. The intro screen's
+    // "Magsimula" button already knows to route into 'independent' (Look &
+    // Circle) on assessment days, so this just adds the missing intro step
+    // instead of silently chaining straight into the next letter's game.
+    setCurrentPhase('anticipatory');
+  };
+
   const handleDragAssessmentComplete = () => {
     console.log('[REVIEW DEBUG] Assessment complete', { currentLetter: currentLetter?.letter });
     if (!currentLetter) return;
-
+    // If this is an official assessment day (Day 10 or Day 20) record the
+    // result in the separate assessment progress list instead of marking the
+    // letter as normally completed. This keeps assessment completion distinct
+    // from regular practice completion.
+    if (isAssessmentDay) {
+      completeAssessmentLetter(currentLetter.letter);
+      return;
+    }
+    
     // Snapshot completed letters BEFORE we call markLetterComplete so we can
     // deterministically compute the list of discovered letters (avoids stale
     // reads from `activeLearner` after setState).
@@ -443,7 +550,18 @@ export default function Home() {
         setCurrentLetter(allLetters[nextIndex]);
         setCurrentPhase('anticipatory');
       } else {
-        setShowLanding(true);
+        // Last letter (z) finished — advance to the correct next day.
+        // Day 1-9 (first pass) -> Day 10 (assessment).
+        // Day 11-19 (replay) -> next replay day, capped at Day 20 (assessment).
+        const nextDayAfterAll = (currentDay >= 11 && currentDay <= 19) ? Math.min(currentDay + 1, 20) : 10;
+        if (activeLearner) {
+          const updated = { ...activeLearner, currentDay: nextDayAfterAll, completedLetters: currentCompleted, weekDay: calculateWeekDay(currentCompleted) };
+          const updatedLearners = learners.map(l => l.id === activeLearner.id ? updated : l);
+          setLearners(updatedLearners);
+          setActiveLearner(updated);
+          setCurrentDay(nextDayAfterAll);
+        }
+        setShowMarungkoStartPicker(true);
       }
       return;
     }
@@ -465,7 +583,19 @@ export default function Home() {
         setCurrentLetter(allLetters[nextIndex]);
         setCurrentPhase('anticipatory');
       } else {
-        setShowLanding(true);
+        // This was the very last letter (z) — all 26 letters are now
+        // completed. Advance the learner into the correct next day.
+        // Day 1-9 (first pass) -> Day 10 (assessment).
+        // Day 11-19 (replay) -> next replay day, capped at Day 20 (assessment).
+        const nextDayAfterAll = (currentDay >= 11 && currentDay <= 19) ? Math.min(currentDay + 1, 20) : 10;
+        if (activeLearner) {
+          const updated = { ...activeLearner, currentDay: nextDayAfterAll, completedLetters: currentCompleted, weekDay: calculateWeekDay(currentCompleted) };
+          const updatedLearners = learners.map(l => l.id === activeLearner.id ? updated : l);
+          setLearners(updatedLearners);
+          setActiveLearner(updated);
+          setCurrentDay(nextDayAfterAll);
+        }
+        setShowMarungkoStartPicker(true);
       }
     }
   };
@@ -637,23 +767,206 @@ export default function Home() {
                 Admin Debug: Pick a game for <span style={{ color: '#1DD1A1' }}>{letterObj.uppercase}</span>
               </div>
               <div style={{ fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: 14, color: '#666', marginTop: 4 }}>
-                Choose which mini-game to start (skip the rest).
+                Pumili ng mini-laro para simulan (puwede laktawan ang iba).
               </div>
             </div>
             <button onClick={() => { setShowAdminGamePicker(false); setAdminGameLetterKey(null); }} style={{ background: '#f0f0f0', border: 'none', borderRadius: 9999, width: 36, height: 36, cursor: 'pointer', fontSize: 18 }}>×</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
-            <ButtonLike bg="#1DD1A1" shadow="#13a077" onClick={() => startAdminGameForLetter('listen', letterObj)}>Listen & Repeat</ButtonLike>
-            <ButtonLike bg="#A29BFE" shadow="#6c63d4" onClick={() => startAdminGameForLetter('look', letterObj)}>Look & Circle</ButtonLike>
-            <ButtonLike bg="#FF9F43" shadow="#c97a2a" onClick={() => startAdminGameForLetter('tracing', letterObj)}>Tracing Game</ButtonLike>
-            <ButtonLike bg="#48DBFB" shadow="#28a7c9" onClick={() => startAdminGameForLetter('draw', letterObj)}>Draw (no guide)</ButtonLike>
-            <ButtonLike bg="#6366f1" shadow="#4f46e5" onClick={() => startAdminGameForLetter('assessment', letterObj)}>Assessment</ButtonLike>
+            <ButtonLike bg="#1DD1A1" shadow="#13a077" onClick={() => startAdminGameForLetter('listen', letterObj)}>Pakinggan at Ulitin</ButtonLike>
+            <ButtonLike bg="#A29BFE" shadow="#6c63d4" onClick={() => startAdminGameForLetter('look', letterObj)}>Tingnan at Bilugan</ButtonLike>
+            <ButtonLike bg="#FF9F43" shadow="#c97a2a" onClick={() => startAdminGameForLetter('tracing', letterObj)}>Larong Sundan</ButtonLike>
+            <ButtonLike bg="#48DBFB" shadow="#28a7c9" onClick={() => startAdminGameForLetter('draw', letterObj)}>Guhit (walang gabay)</ButtonLike>
+            <ButtonLike bg="#6366f1" shadow="#4f46e5" onClick={() => startAdminGameForLetter('assessment', letterObj)}>Pagsusulit</ButtonLike>
             <button
               onClick={() => { setShowAdminGamePicker(false); setAdminGameLetterKey(null); }}
               style={{ flex: 1, background: 'rgba(0,0,0,0.08)', boxShadow: '0 6px 0 rgba(0,0,0,0.18)', border: 'none', borderRadius: 16, height: 54, fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 800, fontSize: 18, color: '#111', cursor: 'pointer' }}
               {...pressSmall('rgba(0,0,0,0.18)')}
             >
-              Cancel
+              Kanselahin
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── Day 20 Complete Modal (Certificate) ───────────────────────────────────
+  const Day20CompleteModal = () => {
+    if (!showDay20CompleteModal) return null;
+    const today = new Date().toLocaleDateString('fil-PH', { year: 'numeric', month: 'long', day: 'numeric' });
+    return (
+      <div
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 80, padding: '16px',
+        }}
+      >
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #FFF9E8 0%, #FFF3D6 100%)',
+            borderRadius: '24px', padding: '10px',
+            width: '100%', maxWidth: '480px',
+            boxShadow: '0 25px 80px rgba(0,0,0,0.4)',
+          }}
+        >
+          <div
+            style={{
+              border: '4px solid #FF9F43', borderRadius: '18px', padding: '30px 26px',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px',
+              textAlign: 'center', position: 'relative', overflow: 'hidden',
+              backgroundImage: 'radial-gradient(circle at top left, rgba(255,159,67,0.08), transparent 60%), radial-gradient(circle at bottom right, rgba(29,209,161,0.08), transparent 60%)',
+            }}
+          >
+            {/* Corner stars */}
+            <span style={{ position: 'absolute', top: '10px', left: '14px', fontSize: '20px' }}>⭐</span>
+            <span style={{ position: 'absolute', top: '10px', right: '14px', fontSize: '20px' }}>⭐</span>
+            <span style={{ position: 'absolute', bottom: '10px', left: '14px', fontSize: '20px' }}>⭐</span>
+            <span style={{ position: 'absolute', bottom: '10px', right: '14px', fontSize: '20px' }}>⭐</span>
+
+            <span style={{ fontSize: '48px', lineHeight: 1 }}>🏆</span>
+
+            <p style={{
+              margin: 0, fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 700,
+              fontSize: '13px', letterSpacing: '2px', color: '#c97a2a', textTransform: 'uppercase',
+            }}>
+              Sertipiko ng Pagtatapos
+            </p>
+
+            <p style={{
+              margin: '4px 0 0', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 800,
+              fontSize: '20px', color: '#333', lineHeight: 1.3,
+            }}>
+              Ipinagmamalaki naming ipahayag na si
+            </p>
+
+            <p style={{
+              margin: '2px 0', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 800,
+              fontSize: 'clamp(26px, 6vw, 34px)', color: '#1DD1A1', lineHeight: 1.2,
+              borderBottom: '3px dashed #FF9F43', padding: '4px 18px 10px',
+            }}>
+              {activeLearner?.name || 'Bata'}
+            </p>
+
+            <p style={{
+              margin: '6px 0 0', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 700,
+              fontSize: '20px', color: '#333', lineHeight: 1.4,
+            }}>
+              ay natapos ang lahat ng 26 letra ng Marungko sa loob ng 20 araw! 🎉
+            </p>
+
+            <p style={{
+              margin: '4px 0 12px', fontFamily: 'var(--font-quicksand, sans-serif)', fontWeight: 600,
+              fontSize: '13px', color: '#888',
+            }}>
+              {today}
+            </p>
+
+            <button
+              onClick={() => { setShowDay20CompleteModal(false); setShowLanding(true); }}
+              style={{
+                background: '#FF9F43', boxShadow: '0 6px 0 #c97a2a', borderRadius: '18px',
+                border: 'none', height: '56px', padding: '0 36px',
+                fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 800, fontSize: '20px',
+                color: '#fff', cursor: 'pointer',
+              }}
+              {...press('#c97a2a')}
+            >
+              Yehey! 🎈
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── Day 10 Complete Modal (Certificate) ───────────────────────────────────
+  const Day10CompleteModal = () => {
+    if (!showDay10CompleteModal) return null;
+    const today = new Date().toLocaleDateString('fil-PH', { year: 'numeric', month: 'long', day: 'numeric' });
+    return (
+      <div
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 80, padding: '16px',
+        }}
+      >
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #FFF9E8 0%, #FFF3D6 100%)',
+            borderRadius: '24px', padding: '10px',
+            width: '100%', maxWidth: '480px',
+            boxShadow: '0 25px 80px rgba(0,0,0,0.4)',
+          }}
+        >
+          <div
+            style={{
+              border: '4px solid #1DD1A1', borderRadius: '18px', padding: '30px 26px',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px',
+              textAlign: 'center', position: 'relative', overflow: 'hidden',
+              backgroundImage: 'radial-gradient(circle at top left, rgba(29,209,161,0.08), transparent 60%), radial-gradient(circle at bottom right, rgba(72,219,251,0.08), transparent 60%)',
+            }}
+          >
+            <span style={{ position: 'absolute', top: '10px', left: '14px', fontSize: '20px' }}>⭐</span>
+            <span style={{ position: 'absolute', top: '10px', right: '14px', fontSize: '20px' }}>⭐</span>
+            <span style={{ position: 'absolute', bottom: '10px', left: '14px', fontSize: '20px' }}>⭐</span>
+            <span style={{ position: 'absolute', bottom: '10px', right: '14px', fontSize: '20px' }}>⭐</span>
+
+            <span style={{ fontSize: '48px', lineHeight: 1 }}>🏆</span>
+
+            <p style={{
+              margin: 0, fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 700,
+              fontSize: '13px', letterSpacing: '2px', color: '#13a077', textTransform: 'uppercase',
+            }}>
+              Sertipiko ng Pagsusulit
+            </p>
+
+            <p style={{
+              margin: '4px 0 0', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 800,
+              fontSize: '20px', color: '#333', lineHeight: 1.3,
+            }}>
+              Ipinagmamalaki naming ipahayag na si
+            </p>
+
+            <p style={{
+              margin: '2px 0', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 800,
+              fontSize: 'clamp(26px, 6vw, 34px)', color: '#1DD1A1', lineHeight: 1.2,
+              borderBottom: '3px dashed #1DD1A1', padding: '4px 18px 10px',
+            }}>
+              {activeLearner?.name || 'Bata'}
+            </p>
+
+            <p style={{
+              margin: '6px 0 0', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 700,
+              fontSize: '20px', color: '#333', lineHeight: 1.4,
+            }}>
+              ay natapos ang lahat ng 26 letra hanggang sa Araw 10! 🎉
+            </p>
+
+            <p style={{
+              margin: '4px 0 12px', fontFamily: 'var(--font-quicksand, sans-serif)', fontWeight: 600,
+              fontSize: '13px', color: '#888',
+            }}>
+              {today}
+            </p>
+
+            <button
+              onClick={() => {
+                setShowDay10CompleteModal(false);
+                setCurrentLetter(allLetters[0]);
+                setCurrentPhase('anticipatory');
+              }}
+              style={{
+                background: '#1DD1A1', boxShadow: '0 6px 0 #13a077', borderRadius: '18px',
+                border: 'none', height: '56px', padding: '0 36px',
+                fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 800, fontSize: '20px',
+                color: '#fff', cursor: 'pointer',
+              }}
+              {...press('#13a077')}
+            >
+              Magpatuloy! 🎈
             </button>
           </div>
         </div>
@@ -676,10 +989,11 @@ export default function Home() {
           }}
         >
           <button
+            className="landing-btn"
             onClick={() => { playBackgroundMusic(); playIntroSound(); setShowLearnersModal(true); setShowAddForm(true); }}
             aria-label="Simulang Matuto"
             style={{
-              width: 'clamp(170px, 39vw, 330px)', border: 'none', background: 'transparent',
+              width: 'clamp(100px, 32vw, 270px)', border: 'none', background: 'transparent',
               padding: 0, cursor: 'pointer', transition: 'transform 0.1s', fontSize: 0,
               filter: 'drop-shadow(0 0 10px #FFE65A) drop-shadow(0 0 22px rgba(255, 213, 0, 0.8))',
               animation: 'playButtonPulse 1.15s ease-in-out infinite',
@@ -693,10 +1007,11 @@ export default function Home() {
             <img src="/play_button.png" alt="Simulang Matuto" style={{ display: 'block', width: '100%', height: 'auto' }} />
           </button>
           <button
+            className="landing-btn"
             onClick={() => { playBackgroundMusic(); playIntroSound(); setShowLearnersModal(true); setShowAddForm(false); }}
             aria-label="Mga Mag-aaral"
             style={{
-              width: 'clamp(170px, 39vw, 330px)', border: 'none', background: 'transparent',
+              width: 'clamp(150px, 32vw, 270px)', border: 'none', background: 'transparent',
               padding: 0, cursor: 'pointer', transition: 'transform 0.1s', fontSize: 0,
               filter: 'drop-shadow(0 18px 18px rgba(0, 0, 0, 0.38))',
             }}
@@ -714,6 +1029,9 @@ export default function Home() {
           @keyframes playButtonPulse {
             0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 10px #FFE65A) drop-shadow(0 0 22px rgba(255, 213, 0, 0.8)); }
             50% { transform: translateY(-8px) scale(1.08); filter: drop-shadow(0 0 16px #FFF27A) drop-shadow(0 0 34px rgba(255, 213, 0, 1)); }
+          }
+          @media (max-height: 500px) {
+            .landing-btn { width: clamp(90px, 18vw, 160px) !important; }
           }
         `}</style>
 
@@ -807,7 +1125,7 @@ export default function Home() {
                                     <div style={{ height: '100%', width: `${learner.overallProgress ?? 0}%`, background: `linear-gradient(90deg, ${color.bg}, ${color.shadow})`, borderRadius: '99px', transition: 'width 0.4s ease' }} />
                                   </div>
                                   <p style={{ margin: 0, fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: '12px', color: '#999' }}>
-                                    {learner.weekDay?.label || 'Hindi pa nagsimula'} · {learner.completedLetters?.length ?? 0}/{MARUNGKO_ORDER.length} titik
+                                    {learner.completedLetters?.length > 0 ? `Day ${learner.currentDay ?? 1}` : 'Hindi pa nagsimula'} · {learner.completedLetters?.length ?? 0}/{MARUNGKO_ORDER.length} titik
                                   </p>
                                 </div>
                                 <span style={{ marginLeft: 'auto', fontSize: '20px' }}>▶️</span>
@@ -880,7 +1198,7 @@ export default function Home() {
               </div>
               <span style={{ fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 700, fontSize: '14px', color: '#333' }}>{activeLearner.name}</span>
               {activeLearner.unlockedLetters && <span style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff', fontSize: '10px', fontWeight: 700, fontFamily: 'var(--font-quicksand, sans-serif)', borderRadius: '6px', padding: '2px 6px', lineHeight: 1.4 }}>ADMIN</span>}
-              <span style={{ fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: '11px', color: '#666', marginLeft: '2px' }}>({activeLearner.weekDay?.label})</span>
+              <span style={{ fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: '11px', color: '#666', marginLeft: '2px' }}>(Day {currentDay})</span>
             </div>
           )}
         </div>
@@ -893,30 +1211,72 @@ export default function Home() {
           }
           .letter-tile-unlocked { transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, filter 0.15s ease !important; }
           .letter-tile-unlocked:hover { transform: translateY(-4px) scale(1.08) !important; filter: brightness(1.12) saturate(1.2); }
+          @media (max-height: 500px) {
+            .letter-tile-btn { width: 68px !important; height: 68px !important; }
+            .letter-tile-grid { grid-template-columns: repeat(7, 68px) !important; }
+            .letter-tile-day-label { font-size: 8px !important; }
+            .letter-tile-upper { font-size: 22px !important; }
+            .letter-tile-lower { font-size: 16px !important; }
+          }
         `}</style>
 
         <div className="marungko-grid" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: 'clamp(8px, 2vh, 16px)', gap: 'clamp(8px, 2vh, 14px)' }}>
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '14px', height: '14px', borderRadius: '4px', background: '#1DD1A1' }} /><span style={{ fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: '12px', color: 'rgba(0,0,0,0.6)', fontWeight: 600 }}>Natapos na ✓</span></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '14px', height: '14px', borderRadius: '4px', background: '#FF9F43' }} /><span style={{ fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: '12px', color: 'rgba(0,0,0,0.6)', fontWeight: 600 }}>Susunod na pag-aralan</span></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '14px', height: '14px', borderRadius: '4px', background: '#ccc' }} /><span style={{ fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: '12px', color: 'rgba(0,0,0,0.6)', fontWeight: 600 }}>Naka-lock 🔒</span></div>
+            {currentDay < 10 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '14px', height: '14px', borderRadius: '4px', background: '#1DD1A1' }} /><span style={{ fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: '12px', color: 'rgba(0,0,0,0.6)', fontWeight: 600 }}>Natapos na ✓</span></div>
+            )}
+            {currentDay < 10 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '14px', height: '14px', borderRadius: '4px', background: '#FF9F43' }} /><span style={{ fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: '12px', color: 'rgba(0,0,0,0.6)', fontWeight: 600 }}>Susunod na pag-aralan</span></div>
+            )}
+            {currentDay < 10 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '14px', height: '14px', borderRadius: '4px', background: '#ccc' }} /><span style={{ fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: '12px', color: 'rgba(0,0,0,0.6)', fontWeight: 600 }}>Naka-lock 🔒</span></div>
+            )}
+            {(currentDay === 10 || currentDay === 20) && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '14px', height: '14px', borderRadius: '4px', background: '#1DD1A1' }} /><span style={{ fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: '12px', color: 'rgba(0,0,0,0.6)', fontWeight: 600 }}>Susunod na susuriin</span></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '14px', height: '14px', borderRadius: '4px', background: '#3B82F6' }} /><span style={{ fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: '12px', color: 'rgba(0,0,0,0.6)', fontWeight: 600 }}>Naisagawa na ang pagsusulit</span></div>
+              </>
+            )}
+            {currentDay >= 11 && currentDay <= 19 && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '14px', height: '14px', borderRadius: '4px', background: '#A29BFE' }} /><span style={{ fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: '12px', color: 'rgba(0,0,0,0.6)', fontWeight: 600 }}>Puwedeng laruin</span></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '14px', height: '14px', borderRadius: '4px', background: '#FD79A8' }} /><span style={{ fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: '12px', color: 'rgba(0,0,0,0.6)', fontWeight: 600 }}>Natapos ngayong araw ✓</span></div>
+              </>
+            )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(clamp(58px, 15vmin, 110px), clamp(58px, 15vmin, 110px)))', gap: 'clamp(8px, 2vmin, 14px)', justifyContent: 'center', width: 'min(96vw, 760px)' }}>
+          <div className="letter-tile-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(clamp(58px, 15vmin, 110px), clamp(58px, 15vmin, 110px)))', gap: 'clamp(8px, 2vmin, 14px)', justifyContent: 'center', width: 'min(96vw, 760px)' }}>
             {marungkoSorted.map((letter, idx) => {
               const color = tileColors[colorGrid[idx]];
               const isCompleted = completedLetters.includes(letter.letter.toLowerCase());
               const isUnlocked = isLetterUnlocked(letter.letter, completedLetters, allLettersUnlocked);
               const isLocked = !isUnlocked;
               const isNext = isUnlocked && !isCompleted;
-              const tileBg = isLocked ? '#d0d0d0' : isCompleted ? '#1DD1A1' : isNext ? '#FF9F43' : color.bg;
-              const tileShadow = isLocked ? '#aaa' : isCompleted ? '#13a077' : isNext ? '#c97a2a' : color.shadow;
-              const tileText = isLocked ? '#999' : isCompleted ? '#fff' : isNext ? '#fff' : color.text;
 
+              // On Day 10 / Day 20, all letters are already unlocked+green
+              // from prior progression — so we need a separate signal for
+              // "has this letter's Look & Circle assessment specifically
+              // been passed today" to show blue instead of green.
+              const assessmentCompletedList = currentDay === 10
+                ? (activeLearner?.day10AssessmentCompletedLetters ?? [])
+                : currentDay === 20
+                  ? (activeLearner?.day20AssessmentCompletedLetters ?? [])
+                  : [];
+              const isAssessedToday = isAssessmentDay && assessmentCompletedList.includes(letter.letter.toLowerCase());
+
+              const isReplayDayRange = currentDay >= 11 && currentDay <= 19;
+              const replayCompletedList = isReplayDayRange
+                ? (activeLearner?.dayPracticeCompletedLetters?.[String(currentDay)] ?? [])
+                : [];
+              const isReplayedToday = isReplayDayRange && replayCompletedList.includes(letter.letter.toLowerCase());
+
+              const tileBg = isLocked ? '#d0d0d0' : isAssessedToday ? '#3B82F6' : isAssessmentDay ? '#1DD1A1' : isReplayedToday ? '#FD79A8' : isReplayDayRange ? '#A29BFE' : isCompleted ? '#1DD1A1' : isNext ? '#FF9F43' : color.bg;
+              const tileShadow = isLocked ? '#aaa' : isAssessedToday ? '#1D4ED8' : isAssessmentDay ? '#13a077' : isReplayedToday ? '#c94d7a' : isReplayDayRange ? '#6c63d4' : isCompleted ? '#13a077' : isNext ? '#c97a2a' : color.shadow;
+              const tileText = isLocked ? '#999' : isAssessedToday ? '#fff' : isAssessmentDay ? '#fff' : isReplayedToday ? '#fff' : isReplayDayRange ? '#fff' : isCompleted ? '#fff' : isNext ? '#fff' : color.text;
               return (
                 <div key={letter.letter} style={{ position: 'relative' }}>
                   <button
-                    className={!isLocked ? 'letter-tile-unlocked' : undefined}
+                    className={`letter-tile-btn${!isLocked ? ' letter-tile-unlocked' : ''}`}
                     onClick={() => {
                       if (isLocked) {
                         const now = Date.now();
@@ -940,15 +1300,15 @@ export default function Home() {
                     onTouchEnd={(e) => { if (isLocked) return; stopTing(); e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = `0 5px 0 ${tileShadow}`; }}
                     style={{ background: tileBg, boxShadow: `0 5px 0 ${tileShadow}`, borderRadius: '16px', border: isCompleted ? '3px solid rgba(255,255,255,0.5)' : isNext ? '3px solid rgba(255,255,255,0.6)' : 'none', width: 'clamp(58px, 15vmin, 110px)', height: 'clamp(58px, 15vmin, 110px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: isLocked ? 'not-allowed' : 'pointer', position: 'relative', overflow: 'hidden', flexShrink: 0, opacity: isLocked ? 0.7 : 1 }}
                   >
-                    <span style={{ position: 'absolute', top: '5px', left: '7px', fontSize: '9px', fontFamily: 'var(--font-quicksand, sans-serif)', fontWeight: 700, color: tileText, opacity: 0.7 }}>Day {getDayIndex(letter.letter) + 1}</span>
+                    <span className="letter-tile-day-label" style={{ position: 'absolute', top: '5px', left: '7px', fontSize: '9px', fontFamily: 'var(--font-quicksand, sans-serif)', fontWeight: 700, color: tileText, opacity: 0.7 }}>{getTileDayLabel(letter.letter)}</span>
                     {isCompleted && <span style={{ position: 'absolute', top: '4px', right: '5px', fontSize: '11px', lineHeight: 1 }}>✓</span>}
                     {isLocked && <span style={{ position: 'absolute', top: '4px', right: '5px', fontSize: '11px', lineHeight: 1 }}>🔒</span>}
                     {isLocked ? (
                       <span style={{ fontSize: '26px', lineHeight: 1 }}>🔒</span>
                     ) : (
                       <>
-                        <span style={{ fontSize: 'clamp(26px, 6.2vmin, 46px)', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 700, color: tileText, lineHeight: 1 }}>{letter.uppercase}</span>
-                        <span style={{ fontSize: 'clamp(20px, 5vmin, 36px)', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 600, color: tileText, opacity: 0.85, lineHeight: 1 }}>{letter.lowercase}</span>
+                        <span className="letter-tile-upper" style={{ fontSize: 'clamp(26px, 6.2vmin, 46px)', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 700, color: tileText, lineHeight: 1 }}>{letter.uppercase}</span>
+                        <span className="letter-tile-lower" style={{ fontSize: 'clamp(20px, 5vmin, 36px)', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 600, color: tileText, opacity: 0.85, lineHeight: 1 }}>{letter.lowercase}</span>
                       </>
                     )}
                     {isNext && <span style={{ position: 'absolute', inset: 0, borderRadius: '16px', boxShadow: '0 0 0 3px rgba(255,159,67,0.5)', animation: 'pulse 1.5s ease-in-out infinite', pointerEvents: 'none' }} />}
@@ -1041,19 +1401,23 @@ export default function Home() {
             <h2 className="font-fredoka font-bold text-foreground mb-4 text-center" style={{ fontSize: 'clamp(20px, 5vmin, 30px)', lineHeight: 1.15 }}>
               HALI NA'T PAG-ARALAN NATIN ANG LETRANG <span className="text-primary">{currentLetter.uppercase}</span>!
             </h2>
-            <p className="text-muted-foreground mb-8 text-center" style={{ fontSize: 'clamp(14px, 3vmin, 18px)' }}>Pindutin ang pindutan para mag simula!</p>
+            <p className="text-foreground mb-8 text-center guide-text small" style={{ fontSize: 'clamp(18px, 4vmin, 24px)' }}>Pindutin ang pindutan para magsimula!</p>
             <div className="flex flex-col items-center gap-3">
-              <button onClick={() => {
+                <button onClick={() => {
                 // If there's a pending next letter guarded by review, start review first
                 console.log('Magsimula pressed — pendingNextLetterIdx:', pendingNextLetterIdx, 'reviewDiscoveredLetters:', reviewDiscoveredLetters);
                 if (pendingNextLetterIdx !== null && (reviewDiscoveredLetters?.length ?? 0) > 0) {
                   console.log('[REVIEW DEBUG] ENTERING REVIEW & RELEARN');
                   setCurrentPhase('review-relearn');
+                } else if (isAssessmentDay) {
+                  // On assessment days (Day 10 & 20) jump straight to the independent
+                  // Listen & Circle assessment (no instruction/guided phases).
+                  setCurrentPhase('independent');
                 } else {
                   setCurrentPhase('instruction');
                 }
               }} style={{ background: '#FF9F43', boxShadow: '0 6px 0 #c97a2a', borderRadius: '18px', border: 'none', height: '64px', padding: '0 40px', fontFamily: 'var(--font-fredoka, sans-serif)', fontWeight: 700, fontSize: '22px', color: '#fff', cursor: 'pointer' }} {...press('#c97a2a')}>Magsimula</button>
-              <button onClick={() => { setShowMarungkoStartPicker(true); playChooseSound(); }} style={{ background: 'none', border: 'none', fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: '14px', color: 'rgba(0,0,0,0.4)', cursor: 'pointer', textDecoration: 'underline' }}>← Pumili ng ibang titik</button>
+              <button onClick={() => { setShowMarungkoStartPicker(true); playChooseSound(); }} className="guide-text small" style={{ background: 'none', border: 'none', fontFamily: 'var(--font-quicksand, sans-serif)', fontSize: 'clamp(16px, 3.5vmin, 20px)', color: '#000', cursor: 'pointer', textDecoration: 'underline' }}>← Pumili ng ibang titik</button>
             </div>
           </div>
         )}
@@ -1072,9 +1436,23 @@ export default function Home() {
 
         {currentPhase === 'independent' && (
           <div style={{ flex: 1, minHeight: 0, width: '100%', display: 'flex', flexDirection: 'column' }}>
-            <StructuredActivity mode="independent" onNext={() => setCurrentPhase('assessment')} learnerCompletedLetters={activeLearner?.completedLetters || []} />
+            <StructuredActivity
+              mode="independent"
+              onNext={() => {
+                // Day 10 & Day 20 are assessment-only days — Look & Circle IS the
+                // whole assessment. Skip the free-draw game and record this
+                // letter's assessment result directly instead of routing through
+                // the normal 'assessment' (AssessCanvas) phase.
+                if (isAssessmentDay && currentLetter) {
+                  completeAssessmentLetter(currentLetter.letter);
+                } else {
+                  setCurrentPhase('assessment');
+                }
+              }}
+              learnerCompletedLetters={activeLearner?.completedLetters || []}
+            />
           </div>
-        )}
+        )}  
 
         {currentPhase === 'assessment' && (
           <div style={{ flex: 1, minHeight: 0, padding: '0 clamp(8px, 2vw, 16px) clamp(8px, 2vh, 16px)', maxWidth: '56rem', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
@@ -1108,6 +1486,8 @@ export default function Home() {
 
       <PasswordModal />
       <AdminGamePickerModal />
+      <Day20CompleteModal />
+      <Day10CompleteModal />
     </div>
   );
 }
