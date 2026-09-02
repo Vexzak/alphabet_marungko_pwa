@@ -19,7 +19,10 @@ export function playAudio(src: string, onEnded?: () => void) {
     if (activeAudio === audio) activeAudio = null;
     onEnded?.();
   };
-  void audio.play().catch(() => { if (activeAudio === audio) activeAudio = null; });
+  void audio.play().catch((err) => {
+    console.error('playAudio FAILED:', src, err.name, err.message);
+    if (activeAudio === audio) activeAudio = null;
+  });
 }
 
 export function playSequence(sources: string[]) {
@@ -33,7 +36,10 @@ export function playSequence(sources: string[]) {
       if (activeAudio === audio) activeAudio = null;
       next(index + 1);
     };
-    void audio.play().catch(() => next(index + 1));
+    void audio.play().catch((err) => {
+      console.error('playSequence item FAILED:', sources[index], err.name, err.message);
+      next(index + 1);
+    });
   };
   next(0);
 }
