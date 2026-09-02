@@ -1614,7 +1614,7 @@ export default function LetterInstruction({ onNext }: LetterInstructionProps) {
                 onClick={() => setShowExcellent(true)}
                 className="pop-in h-14 px-10 text-xl font-fredoka font-bold bg-primary hover:bg-primary/90 text-white rounded-2xl shadow-lg"
               >
-                Next Game 🎮
+                Next Game
               </Button>
             )}
           </div>

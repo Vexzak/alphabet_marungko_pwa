@@ -56,7 +56,7 @@ export default function RewardFeedback({ show, type, message }: RewardFeedbackPr
   const config = {
     correct: {
       emoji: '✨',
-      title: 'Excellent!',
+      title: 'Magaling!',
       bgColor: 'bg-green-100',
       textColor: 'text-green-700',
       borderColor: 'border-green-300',

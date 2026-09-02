@@ -145,7 +145,7 @@ function zoneColCoverage(mask, canvasW, bbox, x0, x1, y0, y1, slices = 8) {
 }
 
 // ---------------------------------------------------------------------------
-// NEW: Anti-scribble gate
+// Anti-scribble gate
 // A random scribble fills the bbox uniformly. We measure how "structured"
 // the ink is by checking horizontal ink-density variance across vertical
 // slices. Letters have concentrated strokes; scribbles are uniform blobs.
@@ -249,9 +249,10 @@ function antiScribblePenalty(userInk, canvasW) {
     const minQ = Math.min(tl, tr, bl, br);
     const maxQ = Math.max(tl, tr, bl, br);
     // All 4 quadrants have ink AND they're similarly populated → scribble
-    // Real letters have at least one near-empty quadrant (minQ/maxQ < 0.25)
-    if (minQ > 0.05 && minQ / Math.max(maxQ, 0.001) > 0.33) {
-      return 0.42;
+    // Real letters have at least one near-empty quadrant. Lowered floor
+    // catches thin-stroke X/crosses that a higher density bar was missing.
+    if (minQ > 0.015 && minQ / Math.max(maxQ, 0.001) > 0.15) {
+      return 0.22;
     }
   }
 
@@ -259,7 +260,7 @@ function antiScribblePenalty(userInk, canvasW) {
 }
 
 // ---------------------------------------------------------------------------
-// Letter feature definitions — FIXED & STRICTER
+// Letter feature definitions
 // ---------------------------------------------------------------------------
 
 function scoreByFeatures(letterChar, userInk) {
@@ -469,13 +470,16 @@ function scoreByFeatures(letterChar, userInk) {
       break;
     }
 
+// AFTER
     case 'l': {
-      const vertStroke = rc(0.25, 0.75, 0, 1.0, 10);
-      const topInk     = ri(0.2, 0.8, 0, 0.15);
-      const bottomInk  = ri(0.2, 0.8, 0.85, 1.0);
-      // Wide zones left+right must be mostly clear (it's a thin stroke)
-      const leftClear  = 1 - ri(0, 0.2, 0.1, 0.9);
-      const rightClear = 1 - ri(0.8, 1.0, 0.1, 0.9);
+      // Widened band vs. other letters — a single thin stroke has no second
+      // stroke to average out natural side-to-side wobble, so it needs more
+      // tolerance than a two-stroke letter to avoid punishing normal kid sway.
+      const vertStroke = rc(0.12, 0.88, 0, 1.0, 10);
+      const topInk     = ri(0.1, 0.9, 0, 0.15);
+      const bottomInk  = ri(0.1, 0.9, 0.85, 1.0);
+      const leftClear  = 1 - ri(0, 0.08, 0.15, 0.85);
+      const rightClear = 1 - ri(0.92, 1.0, 0.15, 0.85);
       checks = [
         [vertStroke, 0.48],
         [topInk,     0.16],
@@ -776,7 +780,7 @@ function scoreByFeatures(letterChar, userInk) {
       break;
     }
 
-    // ---- UPPERCASE STRUCTURAL (FIXED) ----
+    // ---- UPPERCASE STRUCTURAL ----
 
     case 'A': {
       const leftDiag   = ri(0, 0.6, 0.1, 1.0);
@@ -786,13 +790,21 @@ function scoreByFeatures(letterChar, userInk) {
       const bottomOpen = 1 - ri(0.3, 0.7, 0.75, 1.0);
       // Crossbar must be distinct from the legs
       const crossbarCenter = ri(0.25, 0.75, 0.45, 0.65);
+      // ANTI-X: a real A converges to a narrow apex — far top corners must
+      // be empty. An X spreads its diagonals apart at the top, filling
+      // both far top corners, which this catches.
+      const topFarCornersClear = 1 - Math.max(
+        ri(0, 0.18, 0, 0.28),
+        ri(0.82, 1.0, 0, 0.28)
+      );
       checks = [
-        [leftDiag,       0.22],
-        [rightDiag,      0.22],
-        [crossbar,       0.22],
-        [topPoint,       0.13],
-        [bottomOpen,     0.10],
-        [crossbarCenter, 0.11],
+        [leftDiag,             0.19],
+        [rightDiag,            0.19],
+        [crossbar,             0.19],
+        [topPoint,             0.11],
+        [bottomOpen,           0.09],
+        [crossbarCenter,       0.10],
+        [topFarCornersClear,   0.13],
       ];
       break;
     }
@@ -818,7 +830,7 @@ function scoreByFeatures(letterChar, userInk) {
       break;
     }
 
-    // FIXED E — gap-based detection, very strict
+    // E — gap-based detection, very strict
     case 'E': {
       // 1. Left stem must run full height
       const leftStroke = rc(0, 0.20, 0, 1.0, 10);
@@ -864,7 +876,7 @@ function scoreByFeatures(letterChar, userInk) {
       break;
     }
 
-    // FIXED F — same gap-based approach, no bottom bar
+    // F — same gap-based approach, no bottom bar
     case 'F': {
       const leftStroke = rc(0, 0.20, 0, 1.0, 10);
       const topBar     = cc(0.10, 0.92, 0.00, 0.22, 10);
@@ -1274,12 +1286,11 @@ function matchLetterShape(userInk, letterChar, width, height, opts = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// computeCanvasScore — hybrid: feature-based OR template-based
-// FIXED: anti-scribble gate applied to BOTH paths
+// computeCanvasScore — hybrid: feature-based cross-checked against template
 // ---------------------------------------------------------------------------
 
 function computeCanvasScore(canvas, letterChar, opts = {}) {
-  const { requiredScore = 50, minNonWhiteRatio = 0.006 } = opts;
+  const { requiredScore = 75, minNonWhiteRatio = 0.006 } = opts;
   const { width, height } = canvas;
   const userInk = getInkMask(canvas);
   userInk.height = height; // attach for antiScribblePenalty
@@ -1302,37 +1313,37 @@ function computeCanvasScore(canvas, letterChar, opts = {}) {
   let coverage = 0, precision = 0;
   let method = 'feature';
 
-  // If feature rules exist, use them first but allow a template fallback
   if (featureScore !== null) {
     let feat = featureScore;
     if (inkTooHeavy) feat = Math.round(feat * 0.8);
     feat = Math.round(feat * scribblePenalty);
 
-    // If features confidently pass, accept immediately
-    if (feat >= requiredScore) {
+    // Always cross-check against the real letter shape — this is what
+    // catches a random doodle that coincidentally hits the expected
+    // zones without actually looking like the letter.
+    const shapeCheck = matchLetterShape(userInk, letterChar, width, height, { toleranceFactor: 0.11 });
+    let temp = shapeCheck.score;
+    if (inkTooHeavy) temp = Math.round(temp * 0.8);
+    temp = Math.round(temp * scribblePenalty);
+
+    if (feat >= requiredScore && temp >= 56 && shapeCheck.precision >= 0.55) {
+      // Zone checks pass, it resembles the real letter shape, AND most of
+      // the drawn ink actually falls on the letter (not scattered strokes
+      // that happen to pass through the right zones)
       finalScore = feat;
       coverage = finalScore / 100;
       precision = finalScore / 100;
       method = 'feature';
+    } else if (temp > feat) {
+      finalScore = temp;
+      coverage = shapeCheck.coverage;
+      precision = shapeCheck.precision;
+      method = 'template';
     } else {
-      // Fallback: try template matching with a looser tolerance
-      const tryTemplate = matchLetterShape(userInk, letterChar, width, height, { toleranceFactor: 0.16 });
-      let tempScore = tryTemplate.score;
-      if (inkTooHeavy) tempScore = Math.round(tempScore * 0.8);
-      tempScore = Math.round(tempScore * scribblePenalty);
-
-      // Choose the better of feature vs template
-      if (tempScore > feat) {
-        finalScore = tempScore;
-        coverage = tryTemplate.coverage;
-        precision = tryTemplate.precision;
-        method = 'template';
-      } else {
-        finalScore = feat;
-        coverage = finalScore / 100;
-        precision = finalScore / 100;
-        method = 'feature';
-      }
+      finalScore = feat;
+      coverage = finalScore / 100;
+      precision = finalScore / 100;
+      method = 'feature';
     }
   } else {
     method = 'template';
@@ -1400,7 +1411,7 @@ function DrawingPanel({ letterChar, phase, onCorrect, onClear }) {
     playSequence([instr, getLetterSound(letterChar, currentDay ?? 1)]);
     return () => { stopCurrentAudio(); };
   }, [letterChar, phase, currentDay]);
-  const REQUIRED_SCORE = 50;
+  const REQUIRED_SCORE = 75;
   const MIN_NON_WHITE_RATIO = 0.006;
 
   const canvasRef = useRef(null);

@@ -111,14 +111,25 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/sounds/');
 
   if (isAsset) {
+    // Range requests (audio/video seeking) must bypass the Cache API
+    // entirely — Cache Storage only accepts full 200 responses, and
+    // trying to cache.put() a 206 throws and can leave audio playback
+    // stuck with an incomplete/invalid response.
+    if (event.request.headers.has('range')) {
+      event.respondWith(fetch(event.request));
+      return;
+    }
+
     event.respondWith(
       caches.match(event.request).then((response) => {
         if (response) return response;
         return fetch(event.request).then((response) => {
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+          if (response.ok && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache).catch(() => {});
+            });
+          }
           return response;
         });
       })
@@ -129,10 +140,12 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
+        if (response.ok && response.status === 200) {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache).catch(() => {});
+          });
+        }
         return response;
       })
       .catch(() => {
